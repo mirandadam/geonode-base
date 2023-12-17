@@ -1,4 +1,4 @@
-FROM geonode/geonode-base:latest-ubuntu-22.04
+FROM docker.io/geonode/geonode-base:latest-ubuntu-22.04
 LABEL Name="Update geonode-base for the Inteligeo project."
 LABEL Version="0.0.1"
 
