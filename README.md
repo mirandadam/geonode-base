@@ -9,6 +9,7 @@ Original repositories for the Dockerfiles are [here](https://github.com/GeoNode/
 Builds an image from scratch, discarding local caches (--no-cache), tags it as mirandadam/geonode-base:5.2.x, and squashes all the new layers to reduce size (--squash):
 
 ```bash
+podman rmi mirandadam/geonode-base:5.2.x
 podman build --no-cache --squash -t mirandadam/geonode-base:5.2.x .
 ```
 
