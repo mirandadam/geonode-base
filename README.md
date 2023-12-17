@@ -22,6 +22,19 @@ Build an image from scratch in the local foldel (.), discarding local caches (--
 podman build --no-cache --squash -t mirandadam/geonode-base:tagname .
 ```
 
+Make sure you have not introduced a python environment with active CVEs. If you find any CVEs with either pip-audit or safety, fix the Dockerfile to address them and rebuild the image.
+
+```bash
+# Get a shell into the image:
+podman run -it --rm --entrypoint "bash" localhost/mirandadam/geonode-base:tagname
+# Inside the image, install and run pip-audit:
+pip install pip-audit
+pip-audit
+# Also install and run safety:
+pip install safety
+safety check
+```
+
 Make sure that the recent layers were squashed. Check the two last lines of the following output to make sure that this image needs only one layer (the last one) and that the one above it is the upstream geonode/geonode-base:
 
 ```bash
@@ -38,14 +51,6 @@ podman push --creds "user:password" mirandadam/geonode-base:tagname
 
 ### Troubleshooting
 
-#### Inspecting the image
-
-To get a shell to the image:
-```bash
-podman run -it --rm --entrypoint "bash" localhost/mirandadam/geonode-base:tagname
-```
-
-#### Error: crun: realpath `....` failed: No such file or directory: OCI runtime attempted to invoke a command that was not found
 If you have the following error message with `....` replaced by some garbled garbage:
 
 ```
@@ -55,6 +60,7 @@ Error: crun: realpath `....` failed: No such file or directory: OCI runtime atte
 This means that you probably installed the latest podman from the Kubic repositories as per [podman official instructions for Ubntu](https://podman.io/docs/installation#ubuntu) around december 2023. See <https://github.com/containers/podman/issues/21024> for a discussion on a conmon regression that caused this.
 
 Stopgap solution:
+
 ```bash
 #https://packages.ubuntu.com/noble/amd64/conmon/download
 wget http://mirrors.kernel.org/ubuntu/pool/universe/c/conmon/conmon_2.1.6+ds1-1_amd64.deb
