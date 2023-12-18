@@ -35,6 +35,15 @@ pip install safety
 safety check
 ```
 
+You can also use the [grype tool](https://github.com/anchore/grype) to test for vulnerabilities, but the messages produced are a bit overwhelming, seem to have false positives and don't ultimately provide a path to fixing most of the problems since, in the case of this image, they are related to the undelying OS. To install and run it:
+
+```bash
+# installing on ~/bin
+curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b ~/bin
+
+grype mirandadam/geonode-base:tagname
+```
+
 Make sure that the recent layers were squashed. Check the two last lines of the following output to make sure that this image needs only one layer (the last one) and that the one above it is the upstream geonode/geonode-base:
 
 ```bash
@@ -53,7 +62,7 @@ podman push --creds "user:password" mirandadam/geonode-base:tagname
 
 If you have the following error message with `....` replaced by some garbled garbage:
 
-```
+```text
 Error: crun: realpath `....` failed: No such file or directory: OCI runtime attempted to invoke a command that was not found
 ```
 
@@ -83,3 +92,7 @@ APT-Sources: https://download.opensuse.org/repositories/devel:kubic:libcontainer
 Description: OCI container runtime monitor
  OCI container runtime monitor.
 ```
+
+### Todo
+
+- implement provenance/sboms as in <https://docs.docker.com/build/ci/github-actions/attestations/#add-sbom-and-provenance-attestations-with-github-actions>, but for docker. RedHat also has [documentation](https://next.redhat.com/2022/10/27/establishing-a-secure-pipeline/) on creating a secure workflow with provenance and SBOM.
