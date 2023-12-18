@@ -4,9 +4,12 @@ Files for building a personal version of geonode/geonode-base.
 
 Docker Hub: [mirandadam/geonode-base](https://hub.docker.com/r/mirandadam/geonode-base).
 
-Original repositories for the geonode dockerfiles are [here](https://github.com/GeoNode/geonode-docker), but the specific dockerfile for geonode-base is [here](https://github.com/GeoNode/geonode/tree/master/scripts/docker/base/ubuntu).
+References:
 
-Upstream Docker Hub registry is [geonode/geonode-base](https://hub.docker.com/r/geonode/geonode-base).
+* [GeoNode dockerfiles](https://github.com/GeoNode/geonode-docker)
+* Specific [dockerfile for geonode-base](https://github.com/GeoNode/geonode/tree/master/scripts/docker/base/ubuntu).
+* Specific [dockerfile for geonode-project](https://github.com/GeoNode/geonode-project/blob/master/Dockerfile)
+* Upstream [geonode/geonode-base](https://hub.docker.com/r/geonode/geonode-base).
 
 ## How to build
 
@@ -95,4 +98,4 @@ Description: OCI container runtime monitor
 
 ### Todo
 
-- implement provenance/sboms as in <https://docs.docker.com/build/ci/github-actions/attestations/#add-sbom-and-provenance-attestations-with-github-actions>, but for docker. RedHat also has [documentation](https://next.redhat.com/2022/10/27/establishing-a-secure-pipeline/) on creating a secure workflow with provenance and SBOM.
+* implement provenance/sboms as in <https://docs.docker.com/build/ci/github-actions/attestations/#add-sbom-and-provenance-attestations-with-github-actions>, but for docker. RedHat also has [documentation](https://next.redhat.com/2022/10/27/establishing-a-secure-pipeline/) on creating a secure workflow with provenance and SBOM.
