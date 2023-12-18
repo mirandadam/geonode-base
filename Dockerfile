@@ -28,9 +28,12 @@ RUN apt update -qq\
  && apt autoremove --purge -y -qq\
  && apt clean -qq
 
-# Patch the python environment to fix open CVEs:
-RUN pip install -q --upgrade pip
-RUN pip install -q cryptography==41.0.6\
+# Patch the python environment to fix open CVEs,
+# install debugpy for debugging,
+# clearing stuff left behind by pip.
+RUN pip install -q --upgrade pip\
+ && pip install -q\
+ cryptography==41.0.6\
  django==3.2.23\
  flower==1.2.0\
  pillow==10.1.0\
@@ -40,16 +43,15 @@ RUN pip install -q cryptography==41.0.6\
  uwsgi==2.0.22\
  wheel==0.38.1\
  pyopenssl==23.3.0\
- GDAL==$(gdal-config --version)
+ GDAL==$(gdal-config --version)\
+ && pip install -q debugpy\
+ && pip cache purge && rm -rf /root/.cache/pip/http*
 
 # Patch geonode's version of avatar to use LANCZOS instead of ANTIALIAS, which does not exist for Pillow 10.0 onwards.
 RUN sed -i 's/RESIZE_METHOD = Image.ANTIALIAS/RESIZE_METHOD = Image.LANCZOS/g' /usr/local/lib/python3.10/dist-packages/avatar/conf.py
 
 #check if pygdal is correctly installed. Break compilation if it is not.
 RUN python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
-
-#clearing stuff left behind by pip:
-RUN pip cache purge && rm -rf /root/.cache/pip/http*
 
 # This image does not provide a command or entrypoint.
 # It is supposed to be used to build other images.
