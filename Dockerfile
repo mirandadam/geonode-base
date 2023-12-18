@@ -30,7 +30,8 @@ RUN apt update -qq\
 
 # Patch the python environment to fix open CVEs,
 # install debugpy for debugging,
-# clearing stuff left behind by pip.
+# update geoip2 to fix error message "GeoIP path must be a valid file or directory." in the celery container,
+# clear stuff left behind by pip.
 RUN pip install -q --upgrade pip\
  && pip install -q\
  cryptography==41.0.6\
@@ -45,6 +46,7 @@ RUN pip install -q --upgrade pip\
  pyopenssl==23.3.0\
  GDAL==$(gdal-config --version)\
  && pip install -q debugpy\
+ && pip install -q geoip2 --upgrade\
  && pip cache purge && rm -rf /root/.cache/pip/http*
 
 # Patch geonode's version of avatar to use LANCZOS instead of ANTIALIAS, which does not exist for Pillow 10.0 onwards.
