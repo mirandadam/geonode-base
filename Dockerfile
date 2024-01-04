@@ -47,7 +47,7 @@ WORKDIR /
 # Patch geonode's version of avatar to use LANCZOS instead of ANTIALIAS, which does not exist for Pillow 10.0 onwards.
 RUN sed -i 's/RESIZE_METHOD = Image.ANTIALIAS/RESIZE_METHOD = Image.LANCZOS/g' /usr/local/lib/python3.10/dist-packages/avatar/conf.py
 
-#check if pygdal is correctly installed. Break compilation if it is not.
+#Check if pygdal is correctly installed. Make this build fail if there is a version mismatch.
 RUN python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
 
 # This image does not provide a command or entrypoint.
