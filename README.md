@@ -61,41 +61,6 @@ Pushes the image to the Docker Hub registry with credentials "user:password".
 podman push --creds "user:password" mirandadam/geonode-base:tagname
 ```
 
-### Troubleshooting
-
-If you have the following error message with `....` replaced by some garbled garbage:
-
-```text
-Error: crun: realpath `....` failed: No such file or directory: OCI runtime attempted to invoke a command that was not found
-```
-
-This means that you probably installed the latest podman from the Kubic repositories as per [podman official instructions for Ubntu](https://podman.io/docs/installation#ubuntu) around december 2023. See <https://github.com/containers/podman/issues/21024> for a discussion on a conmon regression that caused this.
-
-Stopgap solution:
-
-```bash
-#https://packages.ubuntu.com/noble/amd64/conmon/download
-wget http://mirrors.kernel.org/ubuntu/pool/universe/c/conmon/conmon_2.1.6+ds1-1_amd64.deb
-sudo dpkg -i conmon_2.1.6+ds1-1_amd64.deb
-```
-
-The specific defective package I encountrered shows on `apt show podman -a` as:
-
-```text
-Package: conmon
-Version: 2:2.1.9-0ubuntu22.04+obs17.1
-Priority: optional
-Maintainer: Podman Debbuild Maintainers <https://github.com/orgs/containers/teams/podman-debbuild-maintainers>
-Installed-Size: 795 kB
-Depends: libglib2.0-0,libseccomp2,libsystemd0,libc6,libpcre3,liblzma5,libzstd1,liblz4-1,libcap2,libgcrypt20,libgpg-error0
-Homepage: https://github.com/containers/conmon
-Download-Size: 121 kB
-APT-Manual-Installed: no
-APT-Sources: https://download.opensuse.org/repositories/devel:kubic:libcontainers:unstable/xUbuntu_22.04  Packages
-Description: OCI container runtime monitor
- OCI container runtime monitor.
-```
-
 ### Todo
 
 * implement provenance/sboms as in <https://docs.docker.com/build/ci/github-actions/attestations/#add-sbom-and-provenance-attestations-with-github-actions>, but for docker. RedHat also has [documentation](https://next.redhat.com/2022/10/27/establishing-a-secure-pipeline/) on creating a secure workflow with provenance and SBOM.
