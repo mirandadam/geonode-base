@@ -1,15 +1,16 @@
 # Patch the python environment to fix open CVEs:
 pip==23.3.2
 cryptography==41.0.7
-django==3.2.23
-flower==1.2.0
-pillow==10.1.0
+pillow==10.2.0
 python-ldap==3.4.4
 twisted==23.10.0
-urllib3==1.26.18
 uwsgi==2.0.23
 wheel==0.42.0
 pyopenssl==23.3.0
+# packages that must be kept at a previous major version to avoid crashing geonode.
+django==3.2.23
+flower==1.2.0
+urllib3==1.26.18
 
 
 # update python "dropbox" package to fix error message "DEPRECATION: dropbox 11.36.0 has a non-standard dependency specifier stone>=2.*."
