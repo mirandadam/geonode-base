@@ -5,13 +5,17 @@ LABEL Version="0.0.1"
 # Copy the pip package constraints file.
 COPY requirements.txt /requirements.txt
 
+# Update postgresql repository to stop using the legacy trusted.gpg keyring.
+RUN echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+RUN curl -s -S 'https://www.postgresql.org/media/keys/ACCC4CF8.asc' | gpg --dearmor > /usr/share/keyrings/pgdg.gpg
+
 # update the OS
 RUN apt-get update -qq && apt-get upgrade -y -qq && apt-get clean -qq
 
 # Update GDAL (3.4.1 has two CVEs as of 2023-12-17)
-# Adding deb entry to /etc/apt/sources.list.d/ubuntugis-unstable.list
+# Add deb entry to /etc/apt/sources.list.d/ubuntugis-unstable.list
 RUN echo "deb [signed-by=/usr/share/keyrings/ubuntugis.gpg] https://ppa.launchpadcontent.net/ubuntugis/ubuntugis-unstable/ubuntu/ jammy main" > /etc/apt/sources.list.d/ubuntugis-unstable.list
-# Adding key to /usr/share/keyrings/ubuntugis.gpg with fingerprint 6B827C12C2D425E227EDCA75089EBE08314DF160
+# Add key to /usr/share/keyrings/ubuntugis.gpg with fingerprint 6B827C12C2D425E227EDCA75089EBE08314DF160
 RUN curl -s -S 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6B827C12C2D425E227EDCA75089EBE08314DF160' | gpg --dearmor > /usr/share/keyrings/ubuntugis.gpg
 # Update the OS and add missing memcached package.
 RUN apt-get update -qq\
@@ -47,7 +51,7 @@ WORKDIR /
 # Patch geonode's version of avatar to use LANCZOS instead of ANTIALIAS, which does not exist for Pillow 10.0 onwards.
 RUN sed -i 's/RESIZE_METHOD = Image.ANTIALIAS/RESIZE_METHOD = Image.LANCZOS/g' /usr/local/lib/python3.10/dist-packages/avatar/conf.py
 
-#Check if pygdal is correctly installed. Make this build fail if there is a version mismatch.
+# Check if pygdal is correctly installed. Make this build fail if there is a version mismatch.
 RUN python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
 
 # This image does not provide a command or entrypoint.
