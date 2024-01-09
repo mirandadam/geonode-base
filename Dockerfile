@@ -1,6 +1,6 @@
 FROM docker.io/geonode/geonode-base:latest-ubuntu-22.04
 LABEL Name="Update geonode-base for the Inteligeo project."
-LABEL Version="0.0.1"
+LABEL Version="0.1.0"
 
 # Copy the pip package constraints file.
 COPY requirements.txt /requirements.txt
@@ -10,23 +10,26 @@ RUN echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org
 RUN curl -s -S 'https://www.postgresql.org/media/keys/ACCC4CF8.asc' | gpg --dearmor > /usr/share/keyrings/pgdg.gpg
 
 # update the OS
-RUN apt-get update -qq && apt-get upgrade -y -qq && apt-get clean -qq
+RUN apt-get update -qq\
+ && apt-get dist-upgrade -y -qq\
+ && apt-get autoremove --purge -y -qq\
+ && apt-get clean -qq
 
-# Update GDAL (3.4.1 has two CVEs as of 2023-12-17)
+# Install geonode package. This has to be done before updating GDAL.
+RUN pip install -q --root-user-action=ignore GeoNode==4.1.3.post1
+
+# Update GDAL (3.4.1 has two CVEs as of 2024-01-09)
 # Add deb entry to /etc/apt/sources.list.d/ubuntugis-unstable.list
 RUN echo "deb [signed-by=/usr/share/keyrings/ubuntugis.gpg] https://ppa.launchpadcontent.net/ubuntugis/ubuntugis-unstable/ubuntu/ jammy main" > /etc/apt/sources.list.d/ubuntugis-unstable.list
 # Add key to /usr/share/keyrings/ubuntugis.gpg with fingerprint 6B827C12C2D425E227EDCA75089EBE08314DF160
 RUN curl -s -S 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6B827C12C2D425E227EDCA75089EBE08314DF160' | gpg --dearmor > /usr/share/keyrings/ubuntugis.gpg
 # Update the OS and add missing memcached package.
 RUN apt-get update -qq\
- && apt-get upgrade -y -qq\
+ && apt-get dist-upgrade -y -qq\
+ && apt-get autoremove --purge -y -qq\
  && apt-get install -y -qq memcached\
  && apt-get autoremove --purge -y -qq\
  && apt-get clean -qq
-
-# install geonode package
-
-RUN pip install -q --root-user-action=ignore GeoNode==4.1.3.post1
 
 # Add GDAL python dependency to the constraints file
 RUN echo GDAL==$(gdal-config --version) >> /requirements.txt
