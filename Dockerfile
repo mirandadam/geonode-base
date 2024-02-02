@@ -2,9 +2,6 @@ FROM docker.io/geonode/geonode-base:latest-ubuntu-22.04
 LABEL Name="Update geonode-base for the Inteligeo project."
 LABEL Version="0.1.0"
 
-# Copy the pip package constraints file.
-COPY requirements.txt /requirements.txt
-
 # Update postgresql repository to stop using the legacy trusted.gpg keyring.
 RUN echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list
 RUN curl -s -S 'https://www.postgresql.org/media/keys/ACCC4CF8.asc' | gpg --dearmor > /usr/share/keyrings/pgdg.gpg
@@ -16,7 +13,7 @@ RUN apt-get update -qq\
  && apt-get clean -qq
 
 # Install geonode package. This has to be done before updating GDAL.
-RUN pip install -q --root-user-action=ignore GeoNode==4.1.3.post1
+RUN pip install -q --root-user-action=ignore GeoNode==4.2.1
 
 # Update GDAL (3.4.1 has two CVEs as of 2024-01-09)
 # Add deb entry to /etc/apt/sources.list.d/ubuntugis-unstable.list
@@ -26,10 +23,12 @@ RUN curl -s -S 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x6B827C12
 # Update the OS and add missing memcached package.
 RUN apt-get update -qq\
  && apt-get dist-upgrade -y -qq\
- && apt-get autoremove --purge -y -qq\
  && apt-get install -y -qq memcached\
  && apt-get autoremove --purge -y -qq\
  && apt-get clean -qq
+
+# Copy the pip package constraints file.
+COPY requirements.txt /requirements.txt
 
 # Add GDAL python dependency to the constraints file
 RUN echo GDAL==$(gdal-config --version) >> /requirements.txt
@@ -50,9 +49,6 @@ WORKDIR /usr/src/geonode-contribs/ldap
 RUN pip install -q --root-user-action=ignore -r /requirements.txt --upgrade -e .
 
 WORKDIR /
-
-# Patch geonode's version of avatar to use LANCZOS instead of ANTIALIAS, which does not exist for Pillow 10.0 onwards.
-RUN sed -i 's/RESIZE_METHOD = Image.ANTIALIAS/RESIZE_METHOD = Image.LANCZOS/g' /usr/local/lib/python3.10/dist-packages/avatar/conf.py
 
 # Check if pygdal is correctly installed. Make this build fail if there is a version mismatch.
 RUN python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
