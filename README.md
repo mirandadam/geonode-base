@@ -61,6 +61,16 @@ Pushes the image to the Docker Hub registry with credentials "user:password".
 podman push --creds "user:password" mirandadam/geonode-base:tagname
 ```
 
+## Repository history
+
+After pushing the image to Docker Hub, tag the commit with the same tag as the image. Add a comment with the specific date of the build.
+
+Example:
+
+```bash
+git tag -a "5.2.0-v1" -m "Used to build 5.2.0-v1 in 2023-02-02"
+```
+
 ### Todo
 
 * implement provenance/sboms as in <https://docs.docker.com/build/ci/github-actions/attestations/#add-sbom-and-provenance-attestations-with-github-actions>, but for docker. RedHat also has [documentation](https://next.redhat.com/2022/10/27/establishing-a-secure-pipeline/) on creating a secure workflow with provenance and SBOM.
