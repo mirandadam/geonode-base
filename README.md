@@ -69,6 +69,7 @@ Example:
 
 ```bash
 git tag -a "5.2.0-v1" -m "Used to build 5.2.0-v1 in 2023-02-02"
+git push origin "5.2.0-v1"
 ```
 
 ### Todo
