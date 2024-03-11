@@ -13,7 +13,7 @@ RUN apt-get update -qq\
  && apt-get clean -qq
 
 # Install geonode package. This has to be done before updating GDAL.
-RUN pip install -q --root-user-action=ignore GeoNode==4.2.1
+RUN pip install -q --root-user-action=ignore GeoNode==4.2.2
 
 # Update GDAL (3.4.1 has two CVEs as of 2024-01-09)
 # Add deb entry to /etc/apt/sources.list.d/ubuntugis-unstable.list
