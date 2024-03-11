@@ -1,6 +1,6 @@
 FROM docker.io/geonode/geonode-base:latest-ubuntu-22.04
 LABEL Name="Update geonode-base for the Inteligeo project."
-LABEL Version="0.1.0"
+LABEL Version="testing"
 
 # Update postgresql repository to stop using the legacy trusted.gpg keyring.
 RUN echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main" > /etc/apt/sources.list.d/pgdg.list
@@ -37,7 +37,7 @@ RUN echo GDAL==$(gdal-config --version) >> /requirements.txt
 # specific updates are described in the constraints file
 # cleanup pip cache and other files left behind by pip
 # cleanup all __pycache__ directories
-RUN pip install -q --root-user-action=ignore --upgrade pip==23.3.2\
+RUN pip install -q --root-user-action=ignore --upgrade pip==24\
  && pip install -q --root-user-action=ignore -r /requirements.txt\
  && pip cache purge && rm -rf /root/.cache/pip/http*
 
