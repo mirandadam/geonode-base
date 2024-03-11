@@ -6,8 +6,10 @@ pillow==10.2.0
 python-ldap==3.4.4
 wheel==0.42.0
 paramiko==3.4.0
+cryptography==42.0.5
 # packages that must be kept at a previous major version to avoid crashing geonode.
 flower==1.2.0
+django==3.2.25
 
 
 # update geoip2 to fix error message "GeoIP path must be a valid file or directory." in the celery container,
