@@ -15,6 +15,8 @@ geoip2==4.8.0
 # install debugpy for debugging
 debugpy==1.8.1
 
+#required by geonode but absent on the docker.io/geonode/geonode-base:latest-ubuntu-22.04 image
+invoke==2.2.0
 
 # a new line will be generated here by the Dockerfile
 #GDAL==$(gdal-config --version)
