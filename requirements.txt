@@ -1,7 +1,7 @@
 #This is the requirements.txt for tagname "5.2.0-v2"
 
 # Patch the python environment to fix open CVEs:
-pip==23.3.2
+pip==24
 pillow==10.2.0
 python-ldap==3.4.4
 wheel==0.42.0
@@ -13,7 +13,7 @@ flower==1.2.0
 # update geoip2 to fix error message "GeoIP path must be a valid file or directory." in the celery container,
 geoip2==4.8.0
 # install debugpy for debugging
-debugpy==1.8.0
+debugpy==1.8.1
 
 
 # a new line will be generated here by the Dockerfile
