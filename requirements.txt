@@ -1,21 +1,23 @@
-#This is the requirements.txt for tagname "5.2.0-v2"
+#This is the requirements.txt for tagname "5.3.1"
 
 # Patch the python environment to fix open CVEs:
-pip==24
-pillow==10.2.0
+pip==24.2
+pillow==10.4.0
 python-ldap==3.4.4
-wheel==0.42.0
-paramiko==3.4.0
-cryptography==42.0.5
+wheel==0.44.0
+paramiko==3.4.1
+cryptography==43.0.0
 # packages that must be kept at a previous major version to avoid crashing geonode.
 flower==1.2.0
-django==3.2.25
+django==4.2.15
 
+
+Shapely==2.0.6
 
 # update geoip2 to fix error message "GeoIP path must be a valid file or directory." in the celery container,
 geoip2==4.8.0
 # install debugpy for debugging
-debugpy==1.8.1
+debugpy==1.8.5
 
 #required by geonode but absent on the docker.io/geonode/geonode-base:latest-ubuntu-22.04 image
 invoke==2.2.0
