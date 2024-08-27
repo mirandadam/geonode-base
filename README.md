@@ -1,6 +1,6 @@
 # geonode-base
 
-Files for building a personal version of geonode/geonode-base.
+Files for building a customized version of geonode/geonode-base for use with Inteligeo.
 
 Docker Hub: [mirandadam/geonode-base](https://hub.docker.com/r/mirandadam/geonode-base).
 
