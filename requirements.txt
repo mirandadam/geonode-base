@@ -10,7 +10,6 @@ coverage
 cryptography
 decorator
 Deprecated
-Django <5.0
 django-activity-stream
 django-allauth
 django-appconf
@@ -59,7 +58,6 @@ dynamic-rest
 factory-boy
 flake8
 flaky
-flower < 2.0
 geonode-announcements
 geonode-importer
 geonode-oauth-toolkit
@@ -140,3 +138,7 @@ wrapt
 xmljson
 xmltodict
 zipstream-new
+
+invoke
+flower < 2.0
+Django < 5.0
