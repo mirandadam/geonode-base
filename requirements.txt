@@ -1,144 +1,142 @@
-aiohttp
-amqp
-beautifulsoup4
-black
-boto3
-Brotli
-celery
-certifi
-coverage
-cryptography
-decorator
-Deprecated
-django-activity-stream
-django-allauth
-django-appconf
-django-autocomplete-light
-django-avatar
-django-bootstrap3-datetimepicker-2
-django-celery-results
-django-cors-headers
-django-downloadview
-django-filter
-django-floppyforms
-django-forms-bootstrap
-django-geonode-mapstore-client
-django-grappelli
-django-guardian
-django-imagekit
-django-invitations
-django-ipware
-django-markdownify
-django-modeltranslation
-django-mptt
-django-polymorphic
-django-recaptcha
-djangorestframework
-djangorestframework-gis
-djangorestframework-guardian
-django-select2
-django-sequences
-django-storages
-django-taggit
-django-tastypie
-django-tinymce
-django-treebeard
-django-user-agents
-django-uuid-upload-path
-django-widget-tweaks
-dj-database-url
-dj-pagination
-dnspython
-docker
-drf-extensions
-drf-spectacular
-drf-writable-nested
-dropbox
-dynamic-rest
-factory-boy
-flake8
-flaky
-geonode-announcements
-geonode-importer
-geonode-oauth-toolkit
-geonode-pinax-notifications
-geonode-user-messages
-geoserver-restconfig
-gisdata
-gn-arcrest
-gn-gsimporter
-google-cloud-core
-google-cloud-storage
-gunicorn
-httplib2
-hyperlink
-idna
-inflection
-invoke
-ipython
-jdcal
-jsonschema
-jwcrypto
-kombu
-lxml
-mako
-Markdown
-mercantile
-mistune
-mock
-nh3
-numpy
-oauthlib
-OWSLib
-paramiko
-Paver
-Pillow
-pip
-pixelmatch
-protobuf
-psutil
-psycopg2
-pycountry
-pycsw
-pyjwt
-pylibmc
-PyMuPDF
-pyopenssl
-pyproj
-pytest
-pytest-bdd
-pytest-django
-pytest-splinter
-python-dateutil
-python-slugify
-pytz
-rdflib
-requests
-requests-toolbelt
-schema
-selenium
-selenium-requests
-setuptools
-Shapely
-sherlock
-smart-open
-splinter
-SQLAlchemy
-sqlparse
-timeout-decorator
-tqdm
-Twisted
-urllib3
-user-agents
-uWSGI
-vine
-webdriver-manager
-whitenoise
-wrapt
-xmljson
-xmltodict
-zipstream-new
+aiohttp == 3.10.5
+amqp == 5.2.0
+beautifulsoup4 == 4.12.3
+black == 24.8.0
+boto3 == 1.35.7
+Brotli == 1.1.0
+celery == 5.4.0
+certifi == 2024.7.4
+coverage == 7.6.1
+cryptography == 43.0.0
+decorator == 5.1.1
+Deprecated == 1.2.14
+django-activity-stream == 2.0.0
+django-allauth == 64.1.0
+django-appconf == 1.0.6
+django-autocomplete-light == 3.11.0
+django-avatar == 8.0.0
+django-bootstrap3-datetimepicker-2 == 2.8.3
+django-celery-results == 2.5.1
+django-cors-headers == 4.4.0
+django-downloadview == 2.4.0
+django-filter == 24.3
+django-floppyforms == 1.9.0
+django-forms-bootstrap == 3.1.0
+django-grappelli == 4.0.1
+django-guardian == 2.4.0
+django-imagekit == 5.0.0
+django-invitations == 2.1.0
+django-ipware == 7.0.1
+django-markdownify == 0.9.5
+django-modeltranslation == 0.19.7
+django-mptt == 0.16.0
+django-polymorphic == 3.1.0
+django-recaptcha == 4.0.0
+djangorestframework == 3.15.2
+djangorestframework-gis == 1.1
+djangorestframework-guardian == 0.3.0
+django-select2 == 8.2.1
+django-sequences == 3.0
+django-storages == 1.14.4
+django-taggit == 6.0.0
+django-tastypie == 0.14.7
+django-tinymce == 4.1.0
+django-treebeard == 4.7.1
+django-user-agents == 0.4.0
+django-uuid-upload-path == 1.0.0
+django-widget-tweaks == 1.5.0
+dj-database-url == 2.2.0
+dj-pagination == 2.5.0
+dnspython == 2.6.1
+docker == 7.1.0
+drf-extensions == 0.7.1
+drf-spectacular == 0.27.2
+drf-writable-nested == 0.7.0
+dropbox == 12.0.2
+dynamic-rest == 2.3.0
+factory_boy == 3.3.1
+flake8 == 7.1.1
+flaky == 3.8.1
+geonode-announcements == 2.0.2.2
+geonode-importer == 1.0.10
+geonode-oauth-toolkit == 2.2.2.2
+geonode-pinax-notifications == 6.0.0.2
+geonode-user-messages == 2.0.2.2
+geoserver-restconfig == 2.0.12
+gisdata == 0.5.4
+gn-arcrest == 10.5.6
+gn-gsimporter == 2.0.4
+google-cloud-core == 2.4.1
+google-cloud-storage == 2.18.2
+gunicorn == 23.0.0
+httplib2 == 0.22.0
+hyperlink == 21.0.0
+idna == 3.8 # 2.10 has PYSEC-2024-60
+inflection == 0.5.1
+invoke == 2.2.0
+ipython == 8.26.0
+jdcal == 1.4.1
+jsonschema == 4.23.0
+jwcrypto == 1.5.6
+kombu == 5.4.0
+lxml == 5.3.0
+Mako == 1.3.5
+Markdown == 3.7
+mercantile == 1.2.1
+mistune == 3.0.2
+mock == 5.1.0
+nh3 == 0.2.18
+numpy == 2.1.0
+oauthlib == 3.2.2
+OWSLib == 0.31.0
+paramiko == 3.4.1
+Paver == 1.3.4
+pillow == 10.4.0
+pixelmatch == 0.3.0
+protobuf == 5.27.4
+psutil == 6.0.0
+psycopg2 == 2.9.9
+pycountry == 24.6.1
+pycsw == 2.6.1
+PyJWT == 2.9.0
+pylibmc == 1.6.3
+PyMuPDF == 1.24.9
+pyOpenSSL == 24.2.1 # 24.2.1, latest at this time, has CVE-2023-6129
+pyproj == 3.6.1
+pytest == 8.3.2
+pytest-bdd == 7.2.0
+pytest-django == 4.8.0
+pytest-splinter == 3.3.2
+python-dateutil == 2.9.0.post0
+python-slugify == 8.0.4
+pytz == 2024.1
+rdflib == 7.0.0
+requests == 2.32.3
+requests-toolbelt == 1.0.0
+schema == 0.7.7
+selenium == 4.24.0
+selenium-requests == 2.0.4
+setuptools == 74.0.0
+shapely == 2.0.6
+sherlock == 0.4.1
+smart-open == 7.0.4
+splinter == 0.21.0
+SQLAlchemy == 2.0.32
+sqlparse == 0.5.1
+timeout-decorator == 0.5.0
+tqdm == 4.66.5
+Twisted == 24.7.0
+urllib3 == 2.2.2
+user-agents == 2.2.0
+uWSGI == 2.0.26
+vine == 5.1.0
+webdriver-manager == 4.0.2
+whitenoise == 6.7.0
+wrapt == 1.16.0
+xmljson == 0.2.1
+xmltodict == 0.13.0
+zipstream-new == 1.1.8
 
-invoke
-flower < 2.0
-Django < 5.0
+invoke == 2.2.0
+flower == 2.0.1 # 1.2.0 has PVE-2024-99785, see https://data.safetycli.com/v/66044/97c/
+Django == 4.2.15 # < 5.0
