@@ -1,7 +1,9 @@
-#FROM docker.io/geonode/geonode-base:latest-ubuntu-22.04@sha256:872fccedf55a0047241b27e03cc885fdb2f2674b45c6426c94f4377d4762e99f
 FROM docker.io/ubuntu:24.04@sha256:d35dfc2fe3ef66bcc085ca00d3152b482e6cafb23cdda1864154caf3b19094ba
+ARG GEONODE_VERSION=4.3.1
+# As of 2024-08-29, GeoNode 4.3.1 still has CVE-2023-42439
+ARG IMAGE_VERSION=5.4.0
 LABEL Name="Customized geonode-base for the Inteligeo project."
-LABEL Version="5.4.0"
+LABEL Version="$IMAGE_VERSION"
 
 # Add postgresql repository (not using the legacy trusted.gpg keyring).
 # Update the os and install the necessary packages
@@ -55,8 +57,8 @@ WORKDIR /
 # Install geonode package with no dependencies - they will be installed manually 
 RUN pip install --upgrade pip\
  && apt purge python3-cryptography python3-setuptools python3-setuptools-whl -y -qq\
- && pip install -q django-geonode-mapstore-client==4.3.1\
- && pip install --no-deps -q GeoNode==4.3.1\
+ && pip install -q django-geonode-mapstore-client=="$GEONODE_VERSION"\
+ && pip install --no-deps -q GeoNode=="$GEONODE_VERSION"\
  && pip install -q -r /requirements.txt --upgrade\
  && pip install -q GDAL==$(gdal-config --version).*\
  && pip cache purge && rm -rf /root/.cache/pip/http*
