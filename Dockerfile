@@ -1,4 +1,4 @@
-FROM docker.io/ubuntu:24.04@sha256:d35dfc2fe3ef66bcc085ca00d3152b482e6cafb23cdda1864154caf3b19094ba
+FROM docker.io/ubuntu:24.04@sha256:dfc10878be8d8fc9c61cbff33166cb1d1fe44391539243703c72766894fa834a
 ARG GEONODE_VERSION=4.3.1
 # As of 2024-08-29, GeoNode 4.3.1 still has CVE-2023-42439
 ARG IMAGE_VERSION=testing
@@ -54,11 +54,11 @@ WORKDIR /
 # Install required packages
 # Install specific required pygdal version to match the installed binaries
 # Cleanup pip cache and other files left behind by pip
-# Install geonode package with no dependencies - they will be installed manually 
+# Install geonode package with no dependencies - they will be installed manually
 # Check if pygdal/GDAL is correctly installed. Make this build fail if there is a version mismatch.
+#  && pip install -q django-geonode-mapstore-client=="$GEONODE_VERSION"\
 RUN pip install --upgrade pip\
  && apt purge python3-cryptography python3-setuptools python3-setuptools-whl -y -qq\
- && pip install -q django-geonode-mapstore-client=="$GEONODE_VERSION"\
  && pip install --no-deps -q GeoNode=="$GEONODE_VERSION"\
  && pip install -q -r /requirements.txt --upgrade\
  && pip install -q GDAL==$(gdal-config --version).*\
