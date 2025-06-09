@@ -40,7 +40,6 @@ django-sequences == 3.0
 django-storages == 1.14.6
 django-taggit == 6.1.0
 django-tastypie == 0.15.1
-django-tinymce == 4.1.0
 django-treebeard == 4.7.1
 django-user-agents == 0.4.0
 django-uuid-upload-path == 1.0.0
@@ -142,6 +141,7 @@ invoke == 2.2.0 # necessary but not included in the requirements
 defusedxml == 0.7.1 # necessary but not included in the requirements
 flower == 2.0.1 # 1.2.0 has PVE-2024-99785, see https://data.safetycli.com/v/66044/97c/
 # also, flower is installed in the upstream's dockerfile, not in requirements.txt
+django-tinymce == 3.7.1 # TinyMCE >=4 breaks forms in GeoNode
 Django == 4.2.22 # At this time, this has to be kept below Django 5.0.
 
 #For debugging:
