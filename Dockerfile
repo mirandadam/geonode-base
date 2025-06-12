@@ -27,7 +27,7 @@ RUN apt-get update -qq\
   sharutils zlib1g-dev tini\
  && apt-get install -y -qq --no-install-recommends\
   cron gcc gdal-bin geoip-bin gettext\
-  postgresql-client-15\
+  postgresql-client-16\
   python-is-python3 python3-all-dev python3-dev python3-pip python3-venv\
  && apt-get autoremove --purge -y -qq\
  && apt-get clean -qq\
