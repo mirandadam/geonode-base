@@ -144,6 +144,7 @@ flower == 2.0.1 # 1.2.0 has PVE-2024-99785, see https://data.safetycli.com/v/660
 Django == 4.2.22 # At this time, this has to be kept below Django 5.0.
 
 django-tinymce == 3.7.1 # TinyMCE >=4 breaks forms in GeoNode
+httpx == 0.27.2 # At this time, 0.28 and later break inteligeo scripts for loading data
 
 #For debugging:
 debugpy == 1.8.6
