@@ -1,150 +1,158 @@
-aiohttp == 3.10.11
-amqp == 5.2.0
-beautifulsoup4 == 4.12.3
-black == 24.8.0
-boto3 == 1.35.34
-Brotli == 1.1.0
-celery == 5.4.0
-certifi == 2024.8.30
-coverage == 7.6.1
-cryptography == 45.0.4
-decorator == 5.1.1
-Deprecated == 1.2.14
+aiohttp == 3.14.3
+amqp == 5.4.0
+beautifulsoup4 == 4.15.0
+black == 26.5.1
+boto3 == 1.43.98
+Brotli == 1.2.0
+celery == 5.6.3
+certifi == 2026.7.22
+coverage == 7.16.1
+cryptography == 50.0.1
+decorator == 5.3.1
+Deprecated == 1.3.1
 django-activity-stream == 2.0.0
-django-allauth == 65.9.0
-django-appconf == 1.0.6
-django-autocomplete-light == 3.11.0
-django-avatar == 8.0.1
+django-allauth == 65.19.4
+django-appconf == 1.2.0
+django-autocomplete-light == 4.0.3 # 4.0.x is the last series that supports Django 4.2 (5.0 requires Django >= 5.2)
+django-avatar == 9.0.0
 django-bootstrap3-datetimepicker-2 == 2.8.3
-django-celery-results == 2.5.1
-django-cors-headers == 4.4.0
-django-downloadview == 2.4.0
-django-filter == 24.3
+django-celery-results == 2.6.0
+django-cors-headers == 4.9.0
+django-downloadview == 2.5.0
+django-filter == 25.1 # 25.1 is the last release that supports Django 4.2 (25.2 requires Django >= 5.2)
 django-floppyforms == 1.9.0
 django-forms-bootstrap == 3.1.0
-django-grappelli == 4.0.1
-django-guardian == 2.4.0
-django-imagekit == 5.0.0
+django-grappelli == 5.0.0
+django-guardian == 3.5.0
+django-imagekit == 6.1.1
 django-invitations == 2.1.0
 django-ipware == 7.0.1
-django-markdownify == 0.9.5
-django-modeltranslation == 0.19.9
-django-mptt == 0.16.0
-django-polymorphic == 3.1.0
-django-recaptcha == 4.0.0
-djangorestframework == 3.15.2
-djangorestframework-gis == 1.1
-djangorestframework-guardian == 0.3.0
-django-select2 == 8.4.1
+django-markdownify == 0.9.7
+django-modeltranslation == 0.19.17 # 0.19.17 is the last release that supports Django 4.2 (0.20 requires Django >= 5.1)
+django-mptt == 0.18.0
+django-polymorphic == 4.5.2 # last release before 4.6.0, where get_real_instance() started querying self.__class__.objects: GeoNode's ResourceBaseManager is non_polymorphic(), so the upcast to Dataset/Map/Document stops working (measured); 4.9.0 also drops base_manager_name = "objects" and wants new AlterModelOptions migrations
+django-recaptcha == 4.1.0
+djangorestframework == 3.15.2 # dynamic-rest 2.3.0 (its last release) requires djangorestframework < 3.16; 3.18 also requires Django >= 5.2
+djangorestframework-gis == 1.3.0
+djangorestframework-guardian == 0.4.0
+django-select2 == 8.4.8
 django-sequences == 3.0
-django-storages == 1.14.4
+django-storages == 1.14.6
 django-taggit == 6.1.0
-django-tastypie == 0.14.7
-django-treebeard == 4.7.1
+django-tastypie == 0.15.1
+django-treebeard == 4.8.0 # 4.8.0 is the last release that supports Django 4.2 (5.0 requires Django >= 5.2)
 django-user-agents == 0.4.0
 django-uuid-upload-path == 1.0.0
-django-widget-tweaks == 1.5.0
-dj-database-url == 2.2.0
+django-widget-tweaks == 1.5.1
+dj-database-url == 3.1.2
 dj-pagination == 2.5.0
-dnspython == 2.7.0
-docker == 7.1.0
-drf-extensions == 0.7.1
-drf-spectacular == 0.27.2
-drf-writable-nested == 0.7.0
-dropbox == 12.0.2
+dnspython == 2.8.0
+docker == 7.2.0
+drf-extensions == 0.8.0
+drf-spectacular == 0.30.0
+drf-writable-nested == 0.7.2
+dropbox == 12.2.1
 dynamic-rest == 2.3.0
-factory_boy == 3.3.1
-flake8 == 7.1.1
+factory_boy == 3.3.3
+flake8 == 7.3.0
 flaky == 3.8.1
 geonode-announcements == 2.0.2.2
-geonode-importer == 1.0.10
-geonode-oauth-toolkit == 2.2.2.2
-geonode-pinax-notifications == 6.0.0.2
+# The two runtime dependencies of geonode-importer, which the Dockerfile installs with
+# --no-deps (see there): the exact versions it declares.
+geonode-django-dynamic-model == 0.4.0
+geonode-oauth-toolkit == 2.2.3.1
+geonode-pinax-notifications == 6.0.0.4
 geonode-user-messages == 2.0.2.2
-geoserver-restconfig == 2.0.12
+geoserver-restconfig == 2.0.16
 gisdata == 0.5.4
 gn-arcrest == 10.5.6
 gn-gsimporter == 2.0.4
-google-cloud-core == 2.4.1
-google-cloud-storage == 2.18.2
-gunicorn == 23.0.0
-httplib2 == 0.22.0
+google-cloud-core == 2.7.0
+google-cloud-storage == 3.14.1
+gunicorn == 26.2.0
+httplib2 == 0.32.0
 hyperlink == 21.0.0
-idna == 3.10 # version 2.10, which is required by django-geonode-mapstore-client 4.3.1, has PYSEC-2024-60
+idna == 3.20 # version 2.10, which is required by django-geonode-mapstore-client 4.3.1, has PYSEC-2024-60
 inflection == 0.5.1
-invoke == 2.2.0
-ipython == 8.28.0
+invoke == 3.0.3 # necessary but not included in the requirements
+ipython == 9.17.1
 jdcal == 1.4.1
-jsonschema == 4.23.0
-jwcrypto == 1.5.6
-kombu == 5.4.2
-lxml == 5.3.0
-Mako == 1.3.5
-Markdown == 3.7
+jsonschema == 4.26.0
+jwcrypto == 1.6.1
+kombu == 5.6.2
+lxml == 6.1.3
+Mako == 1.4.1
+Markdown == 3.10.3
 mercantile == 1.2.1
-mistune == 3.0.2
-mock == 5.1.0
-nh3 == 0.2.18
-numpy == 2.1.2
-oauthlib == 3.2.2
-OWSLib == 0.31.0
-paramiko == 3.5.1
+mistune == 3.3.4
+mock == 5.2.0
+nh3 == 0.3.7
+numpy == 2.5.3
+oauthlib == 3.3.1
+OWSLib == 0.36.0
+paramiko == 5.0.0
+pdok-geopackage-validator == 0.8.5 # geonode-importer dependency, see the Dockerfile
 Paver == 1.3.4
-pillow == 10.4.0
-pixelmatch == 0.3.0
-protobuf == 5.28.2
-psutil == 6.0.0
-psycopg2 == 2.9.9
-pycountry == 24.6.1
-pycsw == 2.6.1
-PyJWT == 2.10.1
+pillow == 12.3.0
+pixelmatch == 0.4.0
+protobuf == 7.36.2
+psutil == 7.2.2
+psycopg2 == 2.9.13
+pycountry == 26.2.16
+pycsw == 2.6.1 # 2.6.2 requires OWSLib < 0.29, older than the 0.30 that GeoNode 4.3.1 pins; 2.6.1 has no cap
+PyJWT == 2.14.0
 pylibmc == 1.6.3
-PyMuPDF == 1.24.11
-pyOpenSSL == 25.1.0
-pyproj == 3.7.0
-pytest == 8.3.3
-pytest-bdd == 7.3.0
-pytest-django == 4.9.0
+PyMuPDF == 1.28.2
+pyOpenSSL == 26.4.0
+pyproj == 3.8.0
+pytest == 9.1.1
+pytest-bdd == 8.1.0
+pytest-django == 4.14.0
 pytest-splinter == 3.3.2
 python-dateutil == 2.9.0.post0
-python-slugify == 8.0.4
-pytz == 2024.2
-rdflib == 7.0.0
-requests == 2.32.4
+python-slugify == 9.1.0
+pytz == 2026.3.post1
+rdflib == 7.6.0
+requests == 2.34.2
 requests-toolbelt == 1.0.0
-schema == 0.7.7
-selenium == 4.25.0
+schema == 0.7.8
+selenium == 4.49.0
 selenium-requests == 2.0.4
-setuptools == 80.9.0
-shapely == 2.0.6
+setuptools == 81.0.0 # last release that ships pkg_resources (removed in 82.0.0); pycsw 2.6.1 imports it at import time, so GeoNode fails to start without it
+shapely == 2.1.2
 sherlock == 0.4.1
-smart-open == 7.0.5
+smart-open == 8.0.1
 splinter == 0.21.0
-SQLAlchemy == 2.0.35
-sqlparse == 0.5.1
+SQLAlchemy == 2.0.54
+sqlparse == 0.6.0
 timeout-decorator == 0.5.0
-tqdm == 4.66.5
-Twisted == 24.7.0
-urllib3 == 2.2.3
+tqdm == 4.70.1
+Twisted == 26.4.0
+urllib3 == 2.8.0
 user-agents == 2.2.0
-uWSGI == 2.0.27
+uWSGI == 2.0.31
 vine == 5.1.0
-webdriver-manager == 4.0.2
-whitenoise == 6.7.0
-wrapt == 1.16.0
+webdriver-manager == 4.1.2
+whitenoise == 6.12.0
+wrapt == 2.4.1
 xmljson == 0.2.1
-xmltodict == 0.13.0
+xmltodict == 1.0.4
 zipstream-new == 1.1.8
 
 #Special cases:
-invoke == 2.2.0 # necessary but not included in the requirements
 defusedxml == 0.7.1 # necessary but not included in the requirements
-flower == 2.0.1 # 1.2.0 has PVE-2024-99785, see https://data.safetycli.com/v/66044/97c/
+flower == 2.1.0 # 1.2.0 has PVE-2024-99785, see https://data.safetycli.com/v/66044/97c/
 # also, flower is installed in the upstream's dockerfile, not in requirements.txt
-Django == 4.2.22 # At this time, this has to be kept below Django 5.0.
+# 4.2.30 is the last release of the 4.2 series (end of extended support 2026-04-07;
+# there will be no 4.2.31) and has to be kept below Django 5.0. CVEs released after
+# 4.2.30 are transposed by hand in patches/django/ (see README).
+Django == 4.2.30
 
-django-tinymce == 3.7.1 # TinyMCE >=4 breaks forms in GeoNode
+# Only the Python widget is used; the editor JS is vendored in inteligeo-geonode.
+# GeoNode's assets.min.js embeds its own TinyMCE 5.10.3 and hijacks any other version
+# loaded before it — fixed there by overriding metadata_base.html and admin/base_site.html.
+django-tinymce == 5.0.0
 httpx == 0.27.2 # At this time, 0.28 and later break inteligeo scripts for loading data
 
 #For debugging:
-debugpy == 1.8.6
+debugpy == 1.8.22

@@ -1,6 +1,14 @@
-FROM docker.io/ubuntu:24.04@sha256:b59d21599a2b151e23eea5f6602f4af4d7d31c4e236d22bf0b62b86d2e386b8f
+FROM docker.io/ubuntu:24.04@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3
 ARG GEONODE_VERSION=4.3.1
-# As of 2024-08-29, GeoNode 4.3.1 still has CVE-2023-42439
+# geonode-importer is installed with --no-deps like GeoNode itself: it declares
+# gdal<=3.4.3, whose Python bindings no longer compile against the libgdal-dev that
+# the apt repositories ship (3.13 dropped the ABS() macro they use). Its two runtime
+# dependencies (pdok-geopackage-validator, geonode-django-dynamic-model) are pinned in
+# requirements.txt; the GDAL bindings are installed first, matching the system library
+# exactly, so that no requirement pulls another gdal from PyPI.
+# (1.1.x imports geonode.assets, which only exists from GeoNode 4.4 on.)
+ARG IMPORTER_VERSION=1.0.10
+# CVE-2023-42439: fixed in GeoNode 4.1.3.post1 (GHSA); the PYSEC-2023-176 record still lists 4.3.1 — see README, disposition table.
 ARG IMAGE_VERSION=testing
 LABEL Name="Customized geonode-base for the Inteligeo project."
 LABEL Version="$IMAGE_VERSION"
@@ -47,28 +55,46 @@ COPY requirements.txt /requirements.txt
 
 # Install the geonode_ldap app from "geonode-contribs"
 # TODO: remove this part as soon as we don't need LDAP anymore.
-# Commit 5da1051debdd88c319f3e4fce046c25e0956beb7 is "HEAD" as of 2024-10-28,
-# we use that specific point in time to avoid surprise changes.
+# Commit 68bf8bfb36678011a09ac5acd530a06f35bb6aee is "HEAD" as of 2025-12-15,
+# we use that specific point in time to avoid surprise changes: it fixes
+# remove_user_memberships() deleting groups.
 WORKDIR /usr/src
 RUN git clone https://github.com/GeoNode/geonode-contribs.git -b master
 WORKDIR /usr/src/geonode-contribs/ldap
-RUN git -c advice.detachedHead=false checkout 5da1051debdd88c319f3e4fce046c25e0956beb7 && pip install -q --upgrade -e .
+RUN git -c advice.detachedHead=false checkout 68bf8bfb36678011a09ac5acd530a06f35bb6aee && pip install -q --upgrade -e .
 WORKDIR /
 
-# Install GeoNode without dependencies
+# Install the GDAL bindings that match the installed library (before anything that
+# could pull another gdal from PyPI)
+# Install GeoNode and geonode-importer without dependencies - they are installed from
+# requirements.txt
 # Install required packages
-# Install specific required pygdal version to match the installed binaries
 # Cleanup pip cache and other files left behind by pip
-# Install geonode package with no dependencies - they will be installed manually
-# Check if pygdal/GDAL is correctly installed. Make this build fail if there is a version mismatch.
+# Check that the GDAL bindings match the library. Make this build fail if there is a version mismatch.
 #  && pip install -q django-geonode-mapstore-client=="$GEONODE_VERSION"\
 RUN pip install --upgrade pip\
  && apt purge python3-cryptography python3-setuptools python3-setuptools-whl -y -qq\
- && pip install --no-deps -q GeoNode=="$GEONODE_VERSION"\
- && pip install -q -r /requirements.txt --upgrade\
  && pip install -q GDAL==$(gdal-config --version).*\
+ && pip install --no-deps -q GeoNode=="$GEONODE_VERSION" geonode-importer=="$IMPORTER_VERSION"\
+ && pip install -q -r /requirements.txt --upgrade\
  && pip cache purge && rm -rf /root/.cache/pip/http*\
  && python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
+
+# Security fixes that have no released version for Django 4.2 (series ended on
+# 2026-04-07 with 4.2.30; there will be no 4.2.31) and GeoNode 4.3.1. One .patch per
+# CVE, applied against the installed packages: paths in the patches are "django/..."
+# and "geonode/...", hence -p1 from
+# site-packages. --fuzz=0 because with the default tolerance `patch` silently
+# accepts hunks whose context changed. Files are numbered because 02- depends on 01-.
+# Each patch header states its origin, the side-by-side reading and the test run.
+# See README, "Known vulnerabilities and disposition".
+COPY patches /patches
+WORKDIR /usr/src/venv/lib/python3.12/site-packages
+RUN for p in /patches/django/*.patch /patches/geonode/*.patch; do\
+      echo "== $p" && patch -p1 --fuzz=0 --no-backup-if-mismatch < "$p" || exit 1;\
+    done\
+ && sh /patches/django/evidence.sh .
+WORKDIR /
 
 # This image does not provide a command or entrypoint.
 # It is supposed to be used to build other images.
