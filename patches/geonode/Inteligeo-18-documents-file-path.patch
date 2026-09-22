@@ -1,0 +1,129 @@
+Inteligeo decision 18 (2026-09-22): the documents API no longer reads a path or a
+URL named by the client (local file read and server-side request forgery).
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+No advisory and no fix commit: found in the review of the 5.5.4 update. GeoNode
+5.0 does not have the field any more (removed in the upload rewrite, PR #14223,
+2026-05-14), so there is nothing to transpose; this patch is Inteligeo's own.
+
+What happened: POST /api/v2/documents/ accepted a write-only string field
+`file_path` (documents/api/serializers.py) and, in perform_create
+(documents/api/views.py), handed it to StorageManager(remote_files=...), whose
+data retriever opens the string with smart_open: a filesystem path of the
+container or an http(s) URL. The copy became a document the caller can download.
+`doc_file`, the multipart upload the clients use, went through the same line and
+accepted a string too (`file if isinstance(file, str) else file.name`). The route
+needs only a logged-in user with add_resourcebase, which every registered user has.
+Measured 2026-09-22 in instancia_r, before the patch: `-F file_path=/etc/hostname`
+-> 201 and the download returned the container's hostname; the same with
+`-F doc_file=/etc/hostname` and with JSON {"doc_file": "/etc/hostname"};
+`-F file_path=http://127.0.0.1:8001/static/geonode/img/logo.png` -> 201 with a GET
+from 127.0.0.1 in the access log.
+
+The change: the `file_path` field and its DynamicComputedField subclass are gone
+from the serializer; the view accepts `doc_file` only when it has a read()
+(an uploaded file) and answers 400 "doc_file must be an uploaded file" to a
+string; `doc_url` is untouched (it goes through is_safe_url since
+CVE-2026-39922 and the thumbnail no longer fetches it since CVE-2026-39921). The
+docstring's JSON example that showed a server path is replaced by the form-data
+example. Nothing in the Inteligeo repositories sends `file_path` (grep in
+inteligeo-mapstore, inteligeo-next, inteligeo-api, inteligeo-geonode,
+inteligeo-dados, qgis-configuracao, 2026-09-22); the MapStore client uploads
+`doc_file` as multipart.
+
+Files touched: geonode/documents/api/serializers.py, geonode/documents/api/views.py.
+Neither is among the 13 files inteligeo-geonode overrides (its Dockerfile, lines
+48-76). Applied on a clean copy of the installed package with
+`patch -p1 --fuzz=0 --no-backup-if-mismatch`: 2 files, 0 FAILED, 0 fuzz;
+`python -m py_compile` clean on both.
+
+--- a/geonode/documents/api/serializers.py
++++ b/geonode/documents/api/serializers.py
+@@ -25,18 +25,17 @@
+ logger = logging.getLogger(__name__)
+ 
+ 
+-class GeonodeFilePathField(DynamicComputedField):
+-    def get_attribute(self, instance):
+-        return instance.files
+-
+-
+ class DocumentFieldField(DynamicComputedField):
+     def get_attribute(self, instance):
+         return instance.files
+ 
+ 
+ class DocumentSerializer(ResourceBaseSerializer):
+-    file_path = GeonodeFilePathField(required=False, write_only=True)
++    # Inteligeo decision 18 (2026-09-22): the write-only ``file_path`` field is gone.
++    # It made the server copy whatever string the client sent -- a URL or a path
++    # inside the container -- into a document anyone with the resource could
++    # download. A document is created from an uploaded ``doc_file`` or from a
++    # ``doc_url`` that passes ``is_safe_url``. GeoNode 5.0 no longer has the field.
+     doc_file = DocumentFieldField(required=False, write_only=True)
+ 
+     class Meta:
+@@ -53,7 +52,6 @@
+                     "subtype",
+                     "extension",
+                     "mime_type",
+-                    "file_path",
+                     "doc_file",
+                     "doc_url",
+                 )
+--- a/geonode/documents/api/views.py
++++ b/geonode/documents/api/views.py
+@@ -75,20 +75,10 @@
+     def perform_create(self, serializer):
+         """
+         Function to create document via API v2.
+-        file_path: path to the file
+-        doc_file: the open file
++        doc_file: the open file (``file_path``, a path or URL the server would read,
++        was removed -- Inteligeo decision 18, see the serializer)
+ 
+-        The API expect this kind of JSON:
+-        {
+-            "document": {
+-                "title": "New document",
+-                "metadata_only": true,
+-                "file_path": "/home/mattia/example.json"
+-            }
+-        }
+-        File path rappresent the filepath where the file to upload is saved.
+-
+-        or can be also a form-data:
++        The API expects a form-data:
+         curl --location --request POST 'http://localhost:8000/api/v2/documents' \
+         --form 'title="Super Title2"' \
+         --form 'doc_file=@"/C:/Users/user/Pictures/BcMc-a6T9IM.jpg"' \
+@@ -96,18 +86,24 @@
+         """
+         manager = None
+         serializer.is_valid(raise_exception=True)
+-        file = serializer.validated_data.pop("file_path", None) or serializer.validated_data.pop("doc_file", None)
++        file = serializer.validated_data.pop("doc_file", None)
+         doc_url = serializer.validated_data.pop("doc_url", None)
+         extension = serializer.validated_data.pop("extension", None)
+ 
+         if not file and not doc_url:
+-            raise DocumentException(detail="A file, file path or URL must be speficied")
++            raise DocumentException(detail="A file or URL must be specified")
++
++        # Inteligeo decision 18: a string here (JSON or form field) would be read by
++        # the storage manager as a path or URL, like ``file_path`` was; only an
++        # uploaded file is accepted.
++        if file and not hasattr(file, "read"):
++            raise DocumentException(detail="doc_file must be an uploaded file")
+ 
+         if file and doc_url:
+             raise DocumentException(detail="Either a file or a URL must be specified, not both")
+ 
+         if not extension:
+-            filename = file if isinstance(file, str) else file.name
++            filename = file.name
+             extension = Path(filename).suffix.replace(".", "")
+ 
+         if extension not in settings.ALLOWED_DOCUMENT_TYPES:

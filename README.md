@@ -12,7 +12,7 @@ without its declared dependencies, see *How to update the requirements*), the
 GDAL Python bindings matching the `libgdal` that the apt repositories of the `Dockerfile`
 serve (3.13.2 from pgdg on 2026-09-21). It provides no entrypoint:
 `inteligeo-geonode` builds on top of it. Since 5.5.4 the build also applies security
-patches to the installed Django, GeoNode and Django REST framework (`patches/`), because both have security
+patches to the installed Django, GeoNode and Django REST framework (`patches/`), because the three have security
 fixes that no release usable here carries; see *Known vulnerabilities and disposition*.
 
 References:
@@ -112,10 +112,11 @@ packages are excluded from the bump because their pins are deliberate (see below
 
 ```bash
 $ pip install pur
-$ pur --minor Django --skip httpx,django-tinymce,django-allauth -r requirements.txt
+$ pur --minor Django --skip httpx,django-tinymce,django-allauth,pdok-geopackage-validator,geonode-django-dynamic-model -r requirements.txt
 ```
 
-`pur` reads only the version numbers, so it will also raise the eight pins that are held
+The last two are the exact versions `geonode-importer` declares (see below). `pur`
+reads only the version numbers, so it will also raise the eight pins that are held
 back on purpose, each with its reason on its own line: `django-autocomplete-light`,
 `django-filter`, `django-modeltranslation`, `django-treebeard` (the next releases require
 Django 5.1 or 5.2), `djangorestframework` (`dynamic-rest 2.3.0`, its last release,
@@ -148,7 +149,9 @@ changing either file.
 Then install the file into a throwaway container based on the previous image and run
 `pip check`: every line it prints must start with `geonode 4.3.1` or
 `geonode-importer 1.0.10` (their own `==` declarations of Django, Pillow, DRF, allauth,
-tinymce and `gdal<=3.4.3`; 95 lines on 2026-09-21). Any other line is a real conflict.
+tinymce and `gdal<=3.4.3`; 95 lines on 2026-09-21), and no line may name
+`pdok-geopackage-validator` or `geonode-django-dynamic-model`, the two the importer needs at
+exactly the pinned versions. Any other line is a real conflict.
 Packages that changed major version should have their changelog read against the GeoNode
 4.3.1 code that uses them before the image is built.
 
@@ -180,9 +183,16 @@ test run. That header is the reference; this README only points to it.
   hand on the image, on the `geonode_ldap` editable install and on the Inteligeo code
   (which is not in this image).
 - `patches/geonode/`: the two GeoNode SSRF fixes (CVE-2026-39922, CVE-2026-39921),
-  transposed from GeoNode 5.0.3 to 4.3.1 with one deliberate change of policy, stated in
+  transposed from GeoNode 5.0.3 to 4.3.1 with two deliberate changes of policy, stated in
   the header: private networks are allowed, because Inteligeo runs inside them and the
-  WMS servers of the intranet are the use case of remote services.
+  WMS servers of the intranet are the use case of remote services, and the addresses of
+  the server's own interfaces are refused, because inside a pod they reach the other
+  containers' internal ports. The same patch extends the check to the thumbnail URL of
+  the resources API, which the server fetches on the next save (not in the origin).
+  `Inteligeo-18-documents-file-path.patch` is Inteligeo's own: the documents API
+  copied a path or URL named by the client into a downloadable document (any registered
+  user could read a file of the container); the field is gone and `doc_file` has to be
+  an upload. GeoNode 5.0 removed the field in a rewrite; there was nothing to transpose.
   Also `GeoNode-13366-service-handler-session.patch`: GeoNode 4.3.1 stores the
   remote-service handler object in the session, which fails under the JSON session
   serializer Inteligeo uses (and Django 5 mandates) — registering a remote service
@@ -239,7 +249,11 @@ Django's own, from the release notes.
 
 | Advisory | Severity | Status | Evidence |
 |---|---|---|---|
-| CVE-2026-39922 (GHSA-hw9r-6m78-w6h3, PYSEC-2026-61): SSRF in the remote service form and `/proxy/` | moderate (GHSA) | mitigated by patch `CVE-2026-39922-is-safe-url.patch`: `is_safe_url()` of GeoNode 5.0.3 in `utils.py`, `services/forms.py`, `proxy/views.py` and `geoserver/views.py`, refusing loopback, link-local, multicast, reserved and unspecified addresses and **allowing private networks** (Inteligeo runs in 10.x; the WMS servers of the intranet are the use case). The advisory's "fixed in 4.4.5 / 5.0.2" does not match the tagged trees: the code appears in 5.0.3 | 22 URL cases in the header (loopback, 169.254.169.254, 0.0.0.0, `::1`, `::ffff:127.0.0.1`, `//127.0.0.1:8080/x` refused; 10.x, 192.168.x, 172.16.x, gov.br accepted); `CreateServiceForm` refuses those URLs before any probe, measured inside the image on 2026-09-21 |
+| CVE-2026-39922 (GHSA-hw9r-6m78-w6h3, PYSEC-2026-61): SSRF in the remote service form and `/proxy/` | moderate (GHSA) | mitigated by patch `CVE-2026-39922-is-safe-url.patch`: `is_safe_url()` of GeoNode 5.0.3 in `utils.py`, `services/forms.py`, `proxy/views.py` and `geoserver/views.py`, refusing loopback, link-local, multicast, reserved and unspecified addresses **and the server's own interface addresses** (inside a pod they reach the internal ports of GeoServer and the API) and **allowing private networks** (Inteligeo runs in 10.x; the WMS servers of the intranet are the use case). The advisory's "fixed in 4.4.5 / 5.0.2" does not match the tagged trees: the code appears in 5.0.3 | 18 URL cases in the header (loopback, 169.254.169.254, 0.0.0.0, `::1`, `::ffff:127.0.0.1`, `//127.0.0.1:8080/x`, the pod's own 10.89.0.7 refused; 10.x, 192.168.x, gov.br accepted), run inside the pod on 2026-09-22; `CreateServiceForm` refuses those URLs before any probe, measured inside the image on 2026-09-21 |
+| (no advisory) a URL containing a backslash passes `is_safe_url` and is fetched from another host: `requests` treats `\` as `/`, `urlparse` does not | same class as CVE-2026-39922 | mitigated by the same patch: such URLs are refused (Inteligeo decision 22). GeoNode 5.0 has the same gap | `http://<pod>:8080\@1.1.1.1/x`: `is_safe_url` True before, False after (pod, 2026-09-22) |
+| (no advisory) a dataset's `ows_url` and the metadata upload route (`PUT /api/v2/datasets/<pk>/metadata`) are fetched by the server and were not checked | same class as CVE-2026-39922; needs edit rights on the dataset | mitigated by the same patch (decision 22): both require `is_safe_url`; `layers/api/serializers.py` is overridden by inteligeo-geonode, whose copy carries the check. GeoNode 5.0 has the same unguarded code | loopback URL in `ows_url` + `set_thumbnail_from_bbox`: a loopback-only server in the container logged the GET before the patch (pod, 2026-09-22) |
+| (no advisory) `thumbnail_url` set through `PUT /api/v2/resources/<pk>/set_thumbnail` is fetched by the server on the resource's next save | same class as CVE-2026-39922; needs edit rights on the resource | mitigated by the same patch: the URL has to pass `is_safe_url()` (Inteligeo decision 20). `base/api/views.py` is one of the files inteligeo-geonode overrides, so its copy carries the same check. GeoNode 5.0 has the same unguarded code | PUT with a loopback URL: 200 and stored before the patch, 400 after (pod, 2026-09-22) |
+| (no advisory) `file_path` of `POST /api/v2/documents/`: the server copies any path of the container or any URL into a downloadable document | high for Inteligeo (any registered user; `/proc/self/environ` holds the secrets) | mitigated by patch `Inteligeo-18-documents-file-path.patch`: field removed, `doc_file` accepted only as an upload (decision 18). GeoNode 5.0 removed the field in its upload rewrite (PR #14223) | `-F file_path=/etc/hostname` and `-F doc_file=/etc/hostname`: 201 and the file downloadable before the patch, 400 after (pod, 2026-09-22) |
 | CVE-2026-39921 (PYSEC-2026-2159): SSRF through `doc_url` when building the thumbnail of a remote document | moderate (CVSS 3.1 6.3) | mitigated by patch `CVE-2026-39921-remote-thumbnail.patch`: neither the upload view nor the Celery task `create_document_thumbnail` (which the REST API and the metadata form also run) fetch `doc_url`. Visible consequence: **a document registered by link has no thumbnail**, at upload and at every regeneration (the origin, GeoNode 5.0.2, only skips it at upload) | applied on a clean copy of the installed package, 0 FAILED, `py_compile` clean (2026-09-21); acceptance in the Inteligeo pod: a document with `doc_url` on a loopback address is created without thumbnail and without a request in the GeoNode log |
 | CVE-2023-42439 (GHSA-pxg5-h34r-7q8p, PYSEC-2023-176): SSRF bypass in the proxy | high (GHSA) | not affected: fixed in GeoNode 4.1.3.post1 (the GHSA range is `>= 3.2.0, < 4.1.3.post1`); the PYSEC record has no fixed version and enumerates every later release, including 4.3.1, which is why pip-audit still reports it | GHSA affected range, read on 2026-09-21 |
 
@@ -370,7 +384,7 @@ pip-audit --skip-editable \
 
 Measured on 2026-09-21 on a throwaway container with the final `requirements.txt`
 installed over the deployment container of Inteligeo 5.5.3 (`container-common`, itself
-built on the 5.4.0b base; `localhost/reqcompat:round2`, pip-audit 2.10.1): 60 findings in 15 packages; with the list above plus the seven GDAL ids (that
+built on the 5.4.0b base; pip-audit 2.10.1): 60 findings in 15 packages; with the list above plus the seven GDAL ids (that
 container still had GDAL 3.10.3), 25 ignored and the 35 left are all in the unpinned
 transitive packages that the in-place upgrade did not touch (see *Python packages*).
 On the built `mirandadam/geonode-base:5.5.4` image (2026-09-21, `--no-cache` build,
