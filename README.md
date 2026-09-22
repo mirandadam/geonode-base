@@ -12,7 +12,7 @@ without its declared dependencies, see *How to update the requirements*), the
 GDAL Python bindings matching the `libgdal` that the apt repositories of the `Dockerfile`
 serve (3.13.2 from pgdg on 2026-09-21). It provides no entrypoint:
 `inteligeo-geonode` builds on top of it. Since 5.5.4 the build also applies security
-patches to the installed Django and GeoNode (`patches/`), because both have security
+patches to the installed Django, GeoNode and Django REST framework (`patches/`), because both have security
 fixes that no release usable here carries; see *Known vulnerabilities and disposition*.
 
 References:
@@ -155,11 +155,12 @@ Packages that changed major version should have their changelog read against the
 ## Security patches applied at build time
 
 The `Dockerfile` copies `patches/` into the image and, after the last `pip install`,
-applies every `patches/django/*.patch` and `patches/geonode/*.patch` from
-`site-packages` with `patch -p1 --fuzz=0 --no-backup-if-mismatch`. `--fuzz=0` is
-deliberate: with the default tolerance `patch` accepts hunks whose context has changed,
-which is how a transposed fix silently lands in the wrong place. The Django patches are
-numbered because `02-` edits code that `01-` introduces.
+applies every `patches/django/*.patch`, `patches/geonode/*.patch` and
+`patches/rest_framework/*.patch` from `site-packages` with
+`patch -p1 --fuzz=0 --no-backup-if-mismatch`. `--fuzz=0` is deliberate: with the default
+tolerance `patch` accepts hunks whose context has changed, which is how a transposed fix
+silently lands in the wrong place. The Django patches are numbered because `02-` edits
+code that `01-` introduces.
 
 Each patch file starts with a header stating the CVE, the severity, the origin commit or
 release, what was rewritten for the target version and why it is valid there, and the
@@ -182,8 +183,13 @@ test run. That header is the reference; this README only points to it.
   transposed from GeoNode 5.0.3 to 4.3.1 with one deliberate change of policy, stated in
   the header: private networks are allowed, because Inteligeo runs inside them and the
   WMS servers of the intranet are the use case of remote services.
+- `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
+  (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
+  the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for
+  Django, the origin commit's test changes are in `patches/rest_framework/tests/`, with
+  a README on how to run them (sqlite only; on the host or inside the image).
 
-To redo the work for another Django or GeoNode release: re-diff the patches against the
+To redo the work for another Django, GeoNode or DRF release: re-diff the patches against the
 new tree (the build fails on the first hunk that no longer applies), run the origin tests
 again, and revisit the disposition table -- rows 10 and 11 of `evidence.sh` exist to trip
 when Django reaches a series that contains the code those CVEs are about.
@@ -273,7 +279,7 @@ carry advisories of their own:
 | Package | Advisory | Severity | Status | Evidence |
 |---|---|---|---|---|
 | djangorestframework 3.15.2 | CVE-2026-73229 (GHSA-g47c-3xmw-q6m2): `AdminRenderer` discloses GET-protected data on a 400 response | moderate (GHSA) | not affected: `AdminRenderer` is not used; GeoNode's renderers are `JSONRenderer` and `DynamicBrowsableAPIRenderer` (`geonode/settings.py`, `REST_FRAMEWORK`) and no view sets `renderer_classes` to it | grep for `AdminRenderer` in `geonode/`, `dynamic_rest/`, `drf_spectacular/`, `rest_framework_gis/` and in the Inteligeo code, 0 hits (2026-09-21) |
-| djangorestframework 3.15.2 | CVE-2026-73228 (GHSA-2m8g-3cmr-wg3w): `request.data` bypasses `DATA_UPLOAD_MAX_MEMORY_SIZE` for JSON and form bodies (availability) | moderate (GHSA) | **open**: fixed in 3.17.2, which accepts Django 4.2 but is refused by `dynamic-rest 2.3.0` (its last release, `djangorestframework < 3.16`), which GeoNode 4.3.1 uses for its REST API. The request body is bounded only by the reverse proxy in front of GeoNode (`client_max_body_size 1G` in the Inteligeo Nginx template, the limit dataset uploads need) | read on 2026-09-21; nothing measured |
+| djangorestframework 3.15.2 | CVE-2026-73228 (GHSA-2m8g-3cmr-wg3w): `request.data` bypasses `DATA_UPLOAD_MAX_MEMORY_SIZE` for JSON and form bodies (availability) | moderate (GHSA, CVSS 3.1 5.3) | mitigated by patch `patches/rest_framework/CVE-2026-73228.patch`: the 3.17.2 fix (commit `2912dc98`, one hunk in `request.py`, added lines identical to the origin) transposed to 3.15.2, which stays because `dynamic-rest 2.3.0` (its last release, used by GeoNode 4.3.1 for its REST API) pins `djangorestframework < 3.16`. JSON and urlencoded bodies of DRF views are now read through `HttpRequest.body`, so Django's limit (2.5 MB default; neither `geonode/settings.py` nor `inteligeo5/settings.py` change it) applies to them as it already did to every other view; multipart (dataset and document uploads) keeps its own path and the Nginx `client_max_body_size 1G` | side-by-side reading in the header (`_parse()` and `parsers.py` identical between 3.15.2 and 3.17.2); origin `tests/test_request.py` on the host and inside the built image with the patch applied to the installed 3.15.2 (2026-09-21): 26 passed before the test patch, 3 failed / 28 passed with the test patch on unpatched DRF, 31 passed with the patch; whole DRF suite 1472 -> 1477 passed with the same skips and pre-existing failure -- detail in `patches/rest_framework/tests/README.md` |
 | setuptools 81.0.0 | CVE-2026-59890 (GHSA-h35f-9h28-mq5c): `MANIFEST.in` exclusions bypassed by Unicode normalization when building an sdist on macOS | moderate (GHSA) | not affected: the flaw is in building source distributions (`sdist`) on APFS/HFS+; in this image setuptools only builds wheels of the pinned packages at build time, on Linux, and no sdist is produced or published. Held at 81.0.0 because 82.0.0 removed `pkg_resources`, which `pycsw 2.6.1` imports when the URLconf loads | reading of the advisory; the pin's reason is on its line in `requirements.txt` |
 
 Packages that `requirements.txt` does not pin (transitive dependencies such as `anyio`,
@@ -354,7 +360,7 @@ pip-audit --skip-editable \
 | CVE-2026-39922, CVE-2026-39921 | GeoNode, mitigated by patch |
 | CVE-2023-42439 | GeoNode, not affected (fixed in 4.1.3.post1) |
 | CVE-2026-73229 | djangorestframework, not affected |
-| CVE-2026-73228 | djangorestframework, open |
+| CVE-2026-73228 | djangorestframework, mitigated by patch |
 | CVE-2026-59890 | setuptools, not affected |
 
 Measured on 2026-09-21 on a throwaway container with the final `requirements.txt`
