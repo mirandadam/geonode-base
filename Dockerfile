@@ -81,16 +81,17 @@ RUN pip install --upgrade pip\
  && python -c "from osgeo import gdal; print(gdal.__version__)" | grep $(gdal-config --version)
 
 # Security fixes that have no released version for Django 4.2 (series ended on
-# 2026-04-07 with 4.2.30; there will be no 4.2.31) and GeoNode 4.3.1. One .patch per
-# CVE, applied against the installed packages: paths in the patches are "django/..."
-# and "geonode/...", hence -p1 from
+# 2026-04-07 with 4.2.30; there will be no 4.2.31), GeoNode 4.3.1 and Django REST
+# framework 3.15.2 (the fix is in 3.17.2, which dynamic-rest 2.3.0 refuses). One
+# .patch per CVE, applied against the installed packages: paths in the patches are
+# "django/...", "geonode/..." and "rest_framework/...", hence -p1 from
 # site-packages. --fuzz=0 because with the default tolerance `patch` silently
 # accepts hunks whose context changed. Files are numbered because 02- depends on 01-.
 # Each patch header states its origin, the side-by-side reading and the test run.
 # See README, "Known vulnerabilities and disposition".
 COPY patches /patches
 WORKDIR /usr/src/venv/lib/python3.12/site-packages
-RUN for p in /patches/django/*.patch /patches/geonode/*.patch; do\
+RUN for p in /patches/django/*.patch /patches/geonode/*.patch /patches/rest_framework/*.patch; do\
       echo "== $p" && patch -p1 --fuzz=0 --no-backup-if-mismatch < "$p" || exit 1;\
     done\
  && sh /patches/django/evidence.sh .
