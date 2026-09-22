@@ -183,6 +183,11 @@ test run. That header is the reference; this README only points to it.
   transposed from GeoNode 5.0.3 to 4.3.1 with one deliberate change of policy, stated in
   the header: private networks are allowed, because Inteligeo runs inside them and the
   WMS servers of the intranet are the use case of remote services.
+  Also `GeoNode-13366-service-handler-session.patch`: GeoNode 4.3.1 stores the
+  remote-service handler object in the session, which fails under the JSON session
+  serializer Inteligeo uses (and Django 5 mandates) — registering a remote service
+  returned HTTP 500; the handler is now rebuilt from the Service row on each request,
+  as GeoNode 5.0.3 does (inteligeo-deploy#759).
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for
