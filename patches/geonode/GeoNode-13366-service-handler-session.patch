@@ -1,0 +1,140 @@
+GeoNode #13366 (Inteligeo issue inteligeo-deploy#759): registering a remote service
+ends in HTTP 500, "TypeError: Object of type WmsServiceHandler is not JSON
+serializable", because geonode/services/views.py stores the service handler
+object in the Django session and the Inteligeo settings serialize sessions as
+JSON (SESSION_SERIALIZER = JSONSerializer, inteligeo-geonode commit bb8ea5a,
+2026-02-06, chosen so that a leaked SECRET_KEY cannot become code execution
+through a pickled session). Not a CVE; a functional fix of GeoNode 4.3.1 in the
+setting GeoNode 5 made the default.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+Origin: GeoNode PR #13384 "[Fixes #13366] Replace service handler sessions
+serialization with response caches", commit
+e132e0fc5d46e0184528c9380955b7e078529e56 (master, 2025-08-26), completed by
+commit 75a64462c1 (PR #13397, upgrade to Django 5.2, 2025-10-01), which switched
+GeoNode itself to the JSONSerializer (Django 5 removed PickleSerializer) and
+commented out the last session read. That is the state released in 5.0.3:
+services/views.py lines 78-81 (register_service), 108-111
+(_get_service_handler) and 200-208 (harvest_resources). The origin issue states
+the reason: a session must hold data, not an arbitrary object.
+
+Transposed: the removal of the session storage. In 4.3.1 the handler was
+written at lines 74 (register_service) and 97 (_get_service_handler), read at
+line 190 (harvest_resources, falling back to _get_service_handler on KeyError)
+and popped at line 288 (service_detail). After the patch every view rebuilds
+the handler from the Service row (service_url, type, id), exactly as
+harvest_single_resource (line 206) and rescan_service (line 224) already did in
+4.3.1, so no reader depends on the session any more. The pop in service_detail
+and its comment are removed too, because nothing writes the key; the origin
+kept that dead code (5.0.3 line 264).
+
+Not transposed: the per-process cache of handlers the origin added in
+serviceprocessors/__init__.py (`caches["services"]`, new settings
+CACHES["services"] and SERVICE_CACHE_EXPIRATION_TIME). It needs a settings
+change in every project that imports geonode.settings and it is evaluated at
+import time, so a project without the alias fails to import geonode.services;
+and it buys little here: in 4.3.1 WmsServiceHandler.parsed_service (wms.py
+lines 93-97) re-reads the capabilities on every access and never fills
+_parsed_service, so the pickled handler only carried url, name, indexing_method
+and geonode_service_id. What the session saved was the one GetCapabilities
+request made by WmsServiceHandler.__init__ (line 62, _offers_geonode_projection);
+the harvest page and its POST now make that request once each (measured 1.2-1.5 s
+against a public WMS). Left to the GeoNode 5 migration.
+
+Why a patch here and not a 14th override in inteligeo-geonode: the file has no
+Inteligeo logic, the defect is GeoNode's under the session serializer that
+GeoNode 5 itself adopted, and an override would copy 290 lines to carry a
+26-line deletion, hiding the difference; the patch is the difference.
+
+Files touched: geonode/services/views.py. Not among the 13 library files
+inteligeo-geonode copies over the installed packages (its Dockerfile, lines
+48-78: eleven of GeoNode, one of pycsw, one of the importer).
+
+Test run (2026-09-21): applied on a clean copy of the installed package with
+`patch -p1 --fuzz=0 --no-backup-if-mismatch`: 1 file, 4 hunks, 0 FAILED, 0
+fuzz; `python -m py_compile` clean; the two SSRF patches applied before it in
+the same run, 0 FAILED. Behaviour in the Inteligeo pod (instancia_r, patched
+file copied into the running container, uwsgi touch-reload), with the public
+WMS https://ows.terrestris.de/osm/service: unpatched, POST /services/register/
+-> 500 and GET /services/<id>/harvest -> 500, both with the TypeError above
+raised from django/contrib/sessions/middleware.py process_response
+(geonode.log); patched, register -> 302 to /services/31/harvest, the harvest
+page -> 200 listing the 11 layers of the WMS, POST with one layer -> 302 and a
+harvesting session "finished-all-ok" that created the remote dataset
+"OSM-WMS", service detail -> 200, rescan -> 302 with a refresh session
+"finished-all-ok" (11/11), harvest of a single layer by URL -> 302 and a second
+remote dataset; remove -> 302 leaving 0 services, 0 harvesters, 0 harvestable
+resources, 0 remote datasets and no WMS store in GeoServer. No new occurrence
+of the TypeError in geonode.log after the patch.
+
+--- a/geonode/services/views.py
++++ b/geonode/services/views.py
+@@ -71,8 +71,6 @@
+             if service_handler.indexing_method == enumerations.CASCADED:
+                 service_handler.create_cascaded_store(service)
+             service_handler.geonode_service_id = service.id
+-            request.session[service_handler.url] = service_handler
+-            logger.debug("Added handler to the session")
+             messages.add_message(request, messages.SUCCESS, _("Service registered successfully"))
+             result = HttpResponseRedirect(reverse("harvest_resources", kwargs={"service_id": service.id}))
+         else:
+@@ -84,18 +82,14 @@
+ 
+ 
+ def _get_service_handler(request, service):
+-    """Add the service handler to the HttpSession.
+-    We use the django session object to store the service handler's
+-    representation of the remote service between sequentially logic steps.
+-    This is done in order to improve user experience, as we avoid making
+-    multiple Capabilities requests (this is a time saver on servers that
+-    feature many layers.
++    """Build the service handler for a registered service.
++    The handler is rebuilt on every request, from the service's URL and type,
++    and is not kept in the session: the session is serialized as JSON, which
++    cannot hold an arbitrary object (GeoNode 5, on Django 5, does the same).
+     """
+     service_handler = get_service_handler(service.service_url, service.type, service.id)
+     if not service_handler.geonode_service_id:
+         service_handler.geonode_service_id = service.id
+-    request.session[service.service_url] = service_handler
+-    logger.debug("Added handler to the session")
+     return service_handler
+ 
+ 
+@@ -186,14 +180,9 @@
+ @login_required
+ def harvest_resources(request, service_id):
+     service = get_object_or_404(Service, pk=service_id)
+-    try:
+-        handler = request.session[service.service_url]
+-        if not handler.geonode_service_id:
+-            handler.geonode_service_id = service_id
+-    except KeyError:  # handler is not saved on the session, recreate it
+-        handler = _get_service_handler(request, service)
+-        if not handler.geonode_service_id:
+-            handler.geonode_service_id = service_id
++    handler = _get_service_handler(request, service)
++    if not handler.geonode_service_id:
++        handler.geonode_service_id = service_id
+     if request.method == "GET":
+         return harvest_resources_handle_get(request, service, handler)
+     elif request.method == "POST":
+@@ -279,16 +268,6 @@
+     except EmptyPage:
+         resources = paginator.page(paginator.num_pages)
+ 
+-    # pop the handler out of the session in order to free resources
+-    # - we had stored the service handler on the session in order to
+-    # speed up the register/harvest resources flow. However, for services
+-    # with many resources, keeping the handler in the session leads to degraded
+-    # performance
+-    try:
+-        request.session.pop(service.service_url)
+-    except KeyError:
+-        pass
+-
+     return render(
+         request,
+         template_name="services/service_detail.html",

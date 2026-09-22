@@ -82,8 +82,9 @@ RUN pip install --upgrade pip\
 
 # Security fixes that have no released version for Django 4.2 (series ended on
 # 2026-04-07 with 4.2.30; there will be no 4.2.31), GeoNode 4.3.1 and Django REST
-# framework 3.15.2 (the fix is in 3.17.2, which dynamic-rest 2.3.0 refuses). One
-# .patch per CVE, applied against the installed packages: paths in the patches are
+# framework 3.15.2 (the fix is in 3.17.2, which dynamic-rest 2.3.0 refuses), plus one
+# functional fix of GeoNode 4.3.1 under the JSON session serializer (GeoNode #13366).
+# One .patch per fix, applied against the installed packages: paths in the patches are
 # "django/...", "geonode/..." and "rest_framework/...", hence -p1 from
 # site-packages. --fuzz=0 because with the default tolerance `patch` silently
 # accepts hunks whose context changed. Files are numbered because 02- depends on 01-.
