@@ -33,7 +33,7 @@ What changes in behaviour:
 
 Not changed: the update of a map, and the other creations that take the id inside a
 transaction with slow work in it (ResourceManager.ingest and copy in
-resource/manager.py).
+resource/manager.py); those are handled by Inteligeo-load-5-resource-id-lock.patch.
 
 Files touched: geonode/maps/api/views.py, not among the files inteligeo-geonode
 copies over the installed package.

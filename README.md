@@ -216,6 +216,9 @@ test run. That header is the reference; this README only points to it.
     no longer posts `/rest/reset`. It needs the reset that inteligeo-geonode's importer
     `vector.py` makes after the replace of a vector dataset, and the one that
     inteligeo-deploy's data loads make after rebuilding the table of a layer.
+  - `Inteligeo-load-5-resource-id-lock.patch`: ingesting or copying a resource and
+    registering a remote service no longer hold the row lock that hands out resource ids
+    while copying files or waiting for GeoServer or the remote server.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for

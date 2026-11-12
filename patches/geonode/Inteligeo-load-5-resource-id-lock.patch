@@ -1,0 +1,198 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): ingesting,
+copying a resource and registering a remote service no longer hold the lock that
+hands out resource ids while they do slow work.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: the first save of any resource takes its id from django-sequences
+(get_next_value("ResourceBase") in base/models.py, which inteligeo-geonode
+overrides), and that locks the row of sequences_sequence until the enclosing
+transaction ends. Inteligeo-load-1-map-create-thumbnail.patch took the thumbnail of a
+new map out of such a transaction, after 35 to 48 creations were seen waiting on that
+row for 160 s. The same shape, read in the code of this image:
+- ResourceManager.ingest (resource/manager.py) wraps create() and the concrete ingest
+  in one transaction: for a dataset, the GeoServer synchronisation of create() (with
+  retries 3 s apart while the layer does not exist yet), a copy of the files and
+  GeoServer's importer; for a document, a second copy of the files. Reached from
+  harvesting (harvesters/base.py) when a harvested resource has files.
+- ResourceManager.copy copies the files of the resource (storage_manager.copy) inside
+  the transaction, after _resource.save() took the id. Reached from the copy of a
+  document, map, dashboard or GeoStory (PUT /api/v2/resources/<pk>/copy), and of a
+  dataset not imported by geonode-importer.
+- create_geonode_service of the WMS and ArcGIS handlers (services/serviceprocessors/)
+  asks the remote server for its capabilities (update_availability) inside the
+  transaction that created the Service, which is a ResourceBase.
+
+The change:
+- ingest no longer opens a transaction: create() commits the new resource by itself
+  (get_or_create), and the concrete ingest runs after.
+- copy copies the files before the transaction, from the source resource (the copy
+  carries the same `files`).
+- create_geonode_service checks the remote server and starts the discovery of its
+  layers after the transaction, which still creates the Service and its Harvester.
+
+What changes in behaviour:
+- ingest: a concrete ingest that fails leaves the resource created and marked
+  STATE_INVALID, which is what the handler of ingest already did; before, the
+  transaction rolled the row back and that handler wrote to a row that no longer
+  existed.
+- copy: files are copied even when the transaction fails afterwards; they were
+  already left behind when the concrete copy failed. A failed file copy is still only
+  logged, as before.
+- Remote service: if the check or the start of the discovery raises, the Service and
+  its Harvester stay registered (before, they were rolled back); the check returns
+  False rather than raising for an unreachable server, and a new Harvester is never
+  busy. The discovery task is now queued after the commit, so it no longer races the
+  transaction to find its Harvester.
+
+Read and left as they are:
+- ResourceManager.create: the id is taken by get_or_create, which commits on its own
+  when no transaction encloses it; the transaction that follows (set_missing_info and
+  the concrete create, i.e. the GeoServer synchronisation) runs after the lock is
+  released. Its callers that do not wrap it in a transaction (geonode-importer's
+  create_geonode_resource, createlayer, documents/views.py, geoapps serializers,
+  harvesting, geoserver/helpers.py) do not have the shape.
+- The copy of a dataset not imported by geonode-importer still runs the concrete copy
+  (GeoServer's importer) inside the transaction: taking it out would leave a copy
+  without its layer when the import fails. Datasets imported by geonode-importer are
+  copied by geonode-importer, which does not reach this code.
+- ResourceManager.update, set_permissions, exec and the map update open transactions
+  that do not create a resource.
+
+Files touched: geonode/resource/manager.py, geonode/services/serviceprocessors/wms.py
+and geonode/services/serviceprocessors/arcgis.py, not among the files
+inteligeo-geonode copies over the installed package.
+
+Test run (2026-11-12): applied with `patch -p1 --fuzz=0 --no-backup-if-mismatch` on a
+copy of site-packages/geonode taken from the 5.5.4 image (which already carries the
+earlier patches of this folder), in the order the Dockerfile applies them: 3 files, 5 hunks, 0 FAILED,
+0 fuzz; `python -m py_compile` clean. Not run in a pod: a copy of a document and of a
+map, the registration of a remote WMS service and a harvest with files have to be
+repeated in the mirror, with resources being created at the same time.
+
+--- a/geonode/resource/manager.py
++++ b/geonode/resource/manager.py
+@@ -443,26 +443,30 @@
+         if "files" in to_update:
+             to_update.pop("files")
+         try:
+-            with transaction.atomic():
+-                if resource_type == Document:
+-                    if "name" in to_update:
+-                        to_update.pop("name")
+-                    if files:
+-                        to_update["files"] = storage_manager.copy_files_list(files)
+-                    instance = self.create(uuid, resource_type=Document, defaults=to_update)
+-                elif resource_type == Dataset:
+-                    if files:
+-                        instance = self.create(uuid, resource_type=Dataset, defaults=to_update)
+-                if instance:
+-                    instance = self._concrete_resource_manager.ingest(
+-                        storage_manager.copy_files_list(files),
+-                        uuid=instance.uuid,
+-                        resource_type=resource_type,
+-                        defaults=to_update,
+-                        **kwargs,
+-                    )
+-                    instance.set_processing_state(enumerations.STATE_PROCESSED)
+-                    instance.save(notify=False)
++            # No transaction around create() and the ingest: the first save of the resource
++            # takes its id from the row of sequences_sequence, locked until the enclosing
++            # transaction ends, and the ingest (GeoServer, copies of files) held it, so every
++            # other creation waited. create() commits the new row on its own; a failure of
++            # the ingest leaves it marked STATE_INVALID, as the handler below intends.
++            if resource_type == Document:
++                if "name" in to_update:
++                    to_update.pop("name")
++                if files:
++                    to_update["files"] = storage_manager.copy_files_list(files)
++                instance = self.create(uuid, resource_type=Document, defaults=to_update)
++            elif resource_type == Dataset:
++                if files:
++                    instance = self.create(uuid, resource_type=Dataset, defaults=to_update)
++            if instance:
++                instance = self._concrete_resource_manager.ingest(
++                    storage_manager.copy_files_list(files),
++                    uuid=instance.uuid,
++                    resource_type=resource_type,
++                    defaults=to_update,
++                    **kwargs,
++                )
++                instance.set_processing_state(enumerations.STATE_PROCESSED)
++                instance.save(notify=False)
+         except Exception as e:
+             logger.exception(e)
+             if instance:
+@@ -488,6 +492,14 @@
+         if instance:
+             try:
+                 instance.set_processing_state(enumerations.STATE_RUNNING)
++                # The files are copied before the transaction: inside it, after _resource.save()
++                # took the row of sequences_sequence that hands out the ids of new resources,
++                # every other creation waited for the copy.
++                to_update = {}
++                try:
++                    to_update = storage_manager.copy(instance.get_real_instance()).copy()
++                except Exception as e:
++                    logger.exception(e)
+                 with transaction.atomic():
+                     _resource = copy.copy(instance.get_real_instance())
+                     _resource.owner = owner or instance.get_real_instance().owner
+@@ -523,12 +535,6 @@
+                             _maplayer.pk = _maplayer.id = None
+                             _maplayer.map = _resource.get_real_instance()
+                             _maplayer.save()
+-                    to_update = {}
+-                    try:
+-                        to_update = storage_manager.copy(_resource).copy()
+-                    except Exception as e:
+-                        logger.exception(e)
+-
+                     _resource = self._concrete_resource_manager.copy(instance, uuid=_resource.uuid, defaults=to_update)
+ 
+             except Exception as e:
+--- a/geonode/services/serviceprocessors/arcgis.py
++++ b/geonode/services/serviceprocessors/arcgis.py
+@@ -135,11 +135,15 @@
+                 harvester_type=enumerations.HARVESTER_TYPES[self.service_type],
+                 harvester_type_specific_configuration=self.get_harvester_configuration_options(),
+             )
+-            if service_harvester.update_availability():
+-                service_harvester.initiate_update_harvestable_resources()
+-            else:
+-                logger.exception(GeoNodeException("Could not reach remote endpoint."))
+             instance.harvester = service_harvester
++        # Outside the transaction: Service.objects.create() took the row of
++        # sequences_sequence that hands out the ids of new resources, and the request to
++        # the remote server (GetCapabilities, no time limit) held it, so every other
++        # creation waited.
++        if service_harvester.update_availability():
++            service_harvester.initiate_update_harvestable_resources()
++        else:
++            logger.exception(GeoNodeException("Could not reach remote endpoint."))
+ 
+         self.geonode_service_id = instance.id
+         return instance
+--- a/geonode/services/serviceprocessors/wms.py
++++ b/geonode/services/serviceprocessors/wms.py
+@@ -151,11 +151,15 @@
+                 harvester_type=enumerations.HARVESTER_TYPES[self.service_type],
+                 harvester_type_specific_configuration=self.get_harvester_configuration_options(),
+             )
+-            if service_harvester.update_availability():
+-                service_harvester.initiate_update_harvestable_resources()
+-            else:
+-                logger.exception(GeoNodeException("Could not reach remote endpoint."))
+             instance.harvester = service_harvester
++        # Outside the transaction: Service.objects.create() took the row of
++        # sequences_sequence that hands out the ids of new resources, and the request to
++        # the remote server (GetCapabilities, no time limit) held it, so every other
++        # creation waited.
++        if service_harvester.update_availability():
++            service_harvester.initiate_update_harvestable_resources()
++        else:
++            logger.exception(GeoNodeException("Could not reach remote endpoint."))
+ 
+         self.geonode_service_id = instance.id
+         return instance
