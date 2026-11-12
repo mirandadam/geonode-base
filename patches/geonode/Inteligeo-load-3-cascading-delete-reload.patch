@@ -1,0 +1,50 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): deleting a
+dataset no longer makes GeoServer reload its whole catalog.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: cascading_delete (geoserver/helpers.py), the Celery task that removes
+a deleted dataset from GeoServer, called cat.reload() in the `finally` that follows
+the search for the resource, on every deletion. POST /rest/reload makes GeoServer
+read its whole catalog and configuration again from disk. With the production
+catalog and several deletions running together (Celery autoscale 15,10), GeoServer
+stopped answering.
+
+The change: the `finally` keeps the clearing of the client cache and cat.reset()
+and loses cat.reload().
+
+Who relied on the reload, read before removing it: /rest/reload exists for a
+configuration changed on disk by something other than GeoServer. Nothing between the
+request to delete and this point writes GeoServer's data directory; the steps that
+follow (get_layer, delete of the layer, the styles, the resource and the store) go
+through the REST API, which acts on the catalog GeoServer has in memory. The reset
+of the store connections, which a deletion of files or of a table may need, stays.
+
+Not changed: the search for the store when the Dataset row is already gone (it then
+looks into every store of the workspace), and `expires=30` of the task.
+
+Files touched: geonode/geoserver/helpers.py (after
+Inteligeo-load-2-geoserver-reset-on-read.patch, which edits another function of the
+same file).
+
+Test run (2026-11-12): applied with `patch -p1 --fuzz=0 --no-backup-if-mismatch` on a
+copy of site-packages/geonode taken from the 5.5.4 image (which already carries the
+earlier patches of this folder), in the order the Dockerfile applies them: 1 file, 1 hunk, 0 FAILED,
+0 fuzz; `python -m py_compile` clean. Not run in a pod: deletions of vector and raster datasets have to be repeated in the mirror, checking that nothing is left in GeoServer.
+
+--- a/geonode/geoserver/helpers.py
++++ b/geonode/geoserver/helpers.py
+@@ -480,10 +480,10 @@
+         else:
+             raise e
+     finally:
+-        # Let's reset the connections first
++        # Let's reset the connections first. No cat.reload(): it made GeoServer read its
++        # whole catalog again from disk on every deletion, and nothing here changes the disk.
+         cat._cache.clear()
+         cat.reset()
+-        cat.reload()
+ 
+     if resource is None:
+         # If there is no associated resource,
