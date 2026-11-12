@@ -198,6 +198,12 @@ test run. That header is the reference; this README only points to it.
   serializer Inteligeo uses (and Django 5 mandates) — registering a remote service
   returned HTTP 500; the handler is now rebuilt from the Service row on each request,
   as GeoNode 5.0.3 does (inteligeo-deploy#759).
+  The `Inteligeo-load-*` patches are not security fixes: they came out of the load test
+  of 2026-11-11/12 on the mirror of production (100 simultaneous users), and each header
+  states what was measured, who relied on the removed behaviour and what was not run.
+  - `Inteligeo-load-1-map-create-thumbnail.patch`: the thumbnail of a new map is
+    generated after the transaction commits, not inside it, where it held the lock every
+    other creation of a resource waits for.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for

@@ -1,0 +1,63 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): creating a map
+no longer generates its thumbnail inside the transaction of the request.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: MapViewSet.create (maps/api/views.py) is @transaction.atomic, and
+perform_create ended with resource_manager.set_thumbnail(...), still inside it. The
+first save of a resource takes its id from django-sequences
+(get_next_value("ResourceBase") in base/models.py), which locks the row of
+sequences_sequence until the transaction ends. So every creation of any resource
+waited for the thumbnail of the map being created: a GetMap to GeoServer (3.3 s
+measured), which in turn asks GeoNode to check the token and needs a free uWSGI
+process. With 60 simultaneous creations in the mirror of production, PostgreSQL
+showed 35 to 48 `INSERT INTO sequences_sequence ... ('ResourceBase')` waiting for
+160 s, no process was left to answer GeoServer, and the liveness probe restarted
+GeoNode.
+
+The change: the thumbnail is registered with transaction.on_commit() and runs when
+the transaction of create() commits: in the same request, before the response is
+sent, with the lock released. Everything else (the maplayers, register_event,
+resource_manager.update) stays inside the transaction.
+
+What changes in behaviour:
+- The 201 response is built before the thumbnail exists, so its `thumbnail_url` is
+  the one the map had when saved; the generated one appears on the next read. (Not
+  checked whether 4.3.1 returned the generated URL in this response.)
+- A thumbnail that fails leaves the map created without one, as before:
+  ResourceManager.set_thumbnail (resource/manager.py) already catches and logs
+  every exception.
+- perform_create called outside a transaction runs the thumbnail at once
+  (on_commit's rule), which is the old behaviour.
+
+Not changed: the update of a map, and the other creations that take the id inside a
+transaction with slow work in it (ResourceManager.ingest and copy in
+resource/manager.py).
+
+Files touched: geonode/maps/api/views.py, not among the files inteligeo-geonode
+copies over the installed package.
+
+Test run (2026-11-12): applied with `patch -p1 --fuzz=0 --no-backup-if-mismatch` on a
+copy of site-packages/geonode taken from the 5.5.4 image (which already carries the
+earlier patches of this folder), in the order the Dockerfile applies them: 1 file, 1 hunk, 0 FAILED,
+0 fuzz; `python -m py_compile` clean. Not run in a pod: the 60 simultaneous creations have to be repeated in the mirror.
+
+--- a/geonode/maps/api/views.py
++++ b/geonode/maps/api/views.py
+@@ -130,8 +130,13 @@
+             create_action_perfomed=True,
+             additional_data=post_creation_data,
+         )
+-        # Handle thumbnail generation
+-        resource_manager.set_thumbnail(instance.uuid, instance=instance, overwrite=False)
++        # Handle thumbnail generation, once the transaction opened by create() has committed:
++        # inside it, the thumbnail (a GetMap to GeoServer, seconds) ran while this request
++        # held the row lock that hands out the ids of new resources, and every other
++        # creation waited for it.
++        transaction.on_commit(
++            lambda: resource_manager.set_thumbnail(instance.uuid, instance=instance, overwrite=False)
++        )
+ 
+     def perform_update(self, serializer):
+         # Check instance permissions with resolve_object

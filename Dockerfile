@@ -84,7 +84,8 @@ RUN pip install --upgrade pip\
 # 2026-04-07 with 4.2.30; there will be no 4.2.31), GeoNode 4.3.1 and Django REST
 # framework 3.15.2 (the fix is in 3.17.2, which dynamic-rest 2.3.0 refuses), plus one
 # functional fix of GeoNode 4.3.1 under the JSON session serializer (GeoNode #13366)
-# and one fix of Inteligeo's own (documents API reading a client-named path).
+# and one fix of Inteligeo's own (documents API reading a client-named path), and the
+# fixes that came out of the load test of 2026-11 (Inteligeo-load-*).
 # One .patch per fix, applied against the installed packages: paths in the patches are
 # "django/...", "geonode/..." and "rest_framework/...", hence -p1 from
 # site-packages. --fuzz=0 because with the default tolerance `patch` silently
