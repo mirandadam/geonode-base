@@ -204,6 +204,10 @@ test run. That header is the reference; this README only points to it.
   - `Inteligeo-load-1-map-create-thumbnail.patch`: the thumbnail of a new map is
     generated after the transaction commits, not inside it, where it held the lock every
     other creation of a resource waits for.
+  - `Inteligeo-load-2-geoserver-reset-on-read.patch`: reading a layer from GeoServer
+    (`get_dataset`, `exists`) clears only the client's cache and no longer posts
+    `/rest/reset`, which made GeoServer drop its store connections under requests in
+    flight.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for

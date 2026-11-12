@@ -1,0 +1,70 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): reading a
+layer from GeoServer no longer resets GeoServer.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: get_dataset (geoserver/helpers.py) and GeoServerResourceManager.exists
+(geoserver/manager.py) called gs_catalog.reset() before reading a layer.
+Catalog.reset() of geoserver-restconfig does two things: POST /rest/reset, which
+makes GeoServer drop its store, raster and schema caches and the connections of every
+store, and the clearing of the client's own 5-second cache of REST answers. In the
+load test GeoServer logged "DataSource not available after calling dispose()" 937
+times in one morning, in bursts that came with the uploads. That the reset under
+requests in flight is the cause is inferred from the coincidence, not proved.
+
+The change: both places keep only the clearing of the client cache
+(gs_catalog._cache.clear()).
+
+Who relied on the reset, read before removing it:
+- What the two functions return comes from GET /rest/layers/<name>.xml, GeoServer's
+  configuration, which /rest/reset does not touch; only the client cache could make
+  them read an old answer, and that one is still cleared.
+- get_dataset is called only by clean_styles and set_styles (same file). clean_styles
+  resets GeoServer itself right before calling it, and set_styles ends by calling
+  clean_styles, so every flow that reached the reset through get_dataset (dataset
+  sync, style upload, replace) still resets GeoServer at least once;
+  sync_instance_with_geoserver also keeps its own reset before reading the resource.
+  One call of set_styles made three resets and now makes one.
+- exists is called by GET /api/v2/resource-service/exists/<uuid> (any caller made
+  GeoServer reset) and by the validation of append and replace, whose import resets
+  GeoServer before it starts (_execute_resource_import in geoserver/manager.py).
+
+Not changed: the other calls of reset() (upload, import, sync, clean_styles, purge of
+a coverage store), which follow a change of data.
+
+Files touched: geonode/geoserver/helpers.py and geonode/geoserver/manager.py, not
+among the files inteligeo-geonode copies over the installed package (its
+src/inteligeo5/geoserver/manager.py is not copied by its Dockerfile).
+
+Test run (2026-11-12): applied with `patch -p1 --fuzz=0 --no-backup-if-mismatch` on a
+copy of site-packages/geonode taken from the 5.5.4 image (which already carries the
+earlier patches of this folder), in the order the Dockerfile applies them: 2 files, 2 hunks, 0 FAILED,
+0 fuzz; `python -m py_compile` clean. Not run in a pod: an upload, a replace with a changed schema and a style upload have to be repeated in the mirror, and the GeoServer log read for the dispose() message.
+
+--- a/geonode/geoserver/helpers.py
++++ b/geonode/geoserver/helpers.py
+@@ -1102,7 +1102,9 @@
+ 
+ 
+ def get_dataset(layer, gs_catalog: Catalog):
+-    gs_catalog.reset()
++    # Only the client's own cache is dropped. A POST /rest/reset here made GeoServer
++    # dispose its store connections on every read of a layer, under requests in flight.
++    gs_catalog._cache.clear()
+     gs_dataset = None
+     try:
+         gs_dataset = gs_catalog.get_layer(layer.name)
+--- a/geonode/geoserver/manager.py
++++ b/geonode/geoserver/manager.py
+@@ -94,9 +94,8 @@
+             if hasattr(_real_instance, "subtype") and _real_instance.subtype not in ["tileStore", "remote"]:
+                 try:
+                     logger.debug(f"Searching GeoServer for layer '{_real_instance.alternate}'")
+-                    # Let's reset the connections first
++                    # Only the client's own cache is dropped: see get_dataset() in helpers.py
+                     gs_catalog._cache.clear()
+-                    gs_catalog.reset()
+                     if gs_catalog.get_layer(_real_instance.alternate):
+                         return True
+                 except Exception as e:
