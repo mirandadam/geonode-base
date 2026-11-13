@@ -211,6 +211,11 @@ test run. That header is the reference; this README only points to it.
   - `Inteligeo-load-3-cascading-delete-reload.patch`: deleting a dataset no longer
     posts `/rest/reload`, which made GeoServer read its whole catalog again from disk on
     every deletion.
+  - `Inteligeo-load-4-geoserver-reset-on-sync.patch`: creating or updating a dataset
+    (`sync_instance_with_geoserver`, `clean_styles`) clears only the client's cache and
+    no longer posts `/rest/reset`. It needs the reset that inteligeo-geonode's importer
+    `vector.py` makes after the replace of a vector dataset, and the one that
+    inteligeo-deploy's data loads make after rebuilding the table of a layer.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for

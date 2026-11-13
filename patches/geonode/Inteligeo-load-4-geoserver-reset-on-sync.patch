@@ -1,0 +1,98 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): creating or
+updating a dataset no longer resets GeoServer.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: after Inteligeo-load-2-geoserver-reset-on-read.patch, the 100-user
+round still logged "DataSource not available after calling dispose()" in one burst
+(61 lines in 9 seconds) right after uploads were accepted. Two calls of
+gs_catalog.reset() (POST /rest/reset, which makes GeoServer dispose the connections
+of every store) were still on that path:
+- sync_instance_with_geoserver, which GeoServerResourceManager.create and .update call
+  for every dataset: an upload through geonode-importer reaches it at least twice
+  (create, then the update of the XML metadata step), and every metadata edit once;
+- clean_styles, which set_styles calls at the end of every such sync.
+That these resets cause the burst is inferred from the code and the timing, not proved.
+
+The change: sync_instance_with_geoserver keeps only the clearing of the client cache
+(gs_catalog._cache.clear()); clean_styles drops the reset, since get_dataset, which it
+calls next, clears the client cache itself (Inteligeo-load-2).
+
+Who relied on the reset, read before removing it (the data loads were missed at
+first and added after review):
+- What both functions read (GET /rest/layers, /rest/.../featuretypes, styles) and
+  write (gs_catalog.save, style deletion) is GeoServer's configuration through the REST
+  API, which /rest/reset does not touch.
+- A new dataset: geonode-importer creates the table with ogr2ogr and publishes the
+  feature type through the REST API before the sync; GeoServer reads a new table
+  without a reset, and the reset came after the publication anyway.
+- The replace of a vector dataset: ogr2ogr -overwrite drops and recreates the table,
+  and GeoServer keeps the old schema in its caches until a reset. Before, the reset of
+  the first sync refreshed them, and the DescribeFeatureType of the second sync read
+  the new attributes. Now overwrite_geoserver_resource of Inteligeo's
+  importer/handlers/common/vector.py (inteligeo-geonode, same date) resets GeoServer
+  once, right after ogr2ogr; this patch must not ship without that change.
+- The data loads of the maintenance container (inteligeo-deploy,
+  imagens_locais/manutencao/carga_de_dados): the full load rebuilds the table of an
+  existing layer with an ogr2ogr dump (-overwrite, DROP and CREATE), and the full
+  reload of the Brasil MAIS alerts swaps the table with DROP and CREATE; both then ask
+  GeoNode to sync (/gs/updatelayers), and that sync's reset refreshed the schema.
+  They now post /rest/reset themselves, once per load, right after the table is
+  rebuilt (LayerManager.reset_geoserver, inteligeo-deploy, 2026-11-12); this patch must
+  not ship without that change either. The load's UPSERT does not rebuild the table.
+  Searched for other paths that rebuild the table of a published layer
+  (ogr2ogr -overwrite, DROP TABLE) in inteligeo-deploy, inteligeo-geonode and
+  inteligeo-api: the other DROP TABLEs are of staging tables or of the table of an
+  import being rolled back. A table changed outside these tools (by hand, or one used
+  with the load's --from-postgis) needs a reset by hand, as it would have before any
+  sync.
+- The replace of a raster dataset: geonode-importer deletes the coverage store through
+  the REST API (which disposes that store's reader) and publishes it again.
+- The legacy `overwrite` branch of the sync (geoserver_upload) changes data after the
+  point where the reset was, so it never relied on it.
+
+Not changed: the reset before the legacy GeoServer importer's append and replace
+(_execute_resource_import in geoserver/manager.py), not reached by Inteligeo's
+uploads; the two of cascading_delete (helpers.py), one per deletion: the one before
+the search for the resource and the one that releases a coverage store's readers
+before its files are deleted; geoserver/upload.py and upload/utils.py (legacy upload
+and mosaics).
+
+Files touched: geonode/geoserver/helpers.py (after Inteligeo-load-2 and -3, which
+edit other functions of the same file).
+
+Test run (2026-11-12): applied with `patch -p1 --fuzz=0 --no-backup-if-mismatch` on a
+copy of site-packages/geonode taken from the 5.5.4 image (which already carries the
+earlier patches of this folder), in the order the Dockerfile applies them: 1 file, 2 hunks, 0 FAILED,
+0 fuzz; `python -m py_compile` clean. Not run in a pod: an upload, a metadata edit, a
+style upload and a replace of a vector dataset with a changed schema have to be
+repeated in the mirror, and the GeoServer log read for the dispose() message.
+
+--- a/geonode/geoserver/helpers.py
++++ b/geonode/geoserver/helpers.py
+@@ -1126,7 +1126,8 @@
+     try:
+         # Cleanup Styles without a Workspace
+         style = None
+-        gs_catalog.reset()
++        # No gs_catalog.reset(): get_dataset() drops the client's cache, and deleting a style
++        # goes through the REST API; the reset made GeoServer dispose every store's connections.
+         gs_dataset = get_dataset(layer, gs_catalog)
+         if gs_dataset is not None:
+             logger.debug(f'clean_styles: Retrieving style "{gs_dataset.default_style.name}" for cleanup')
+@@ -2028,9 +2029,12 @@
+         #    Currently only gpkg files containing tiles will have this type & will be served via MapProxy.
+         _is_remote_instance = hasattr(instance, "subtype") and getattr(instance, "subtype") in ["tileStore", "remote"]
+ 
+-        # Let's reset the connections first
++        # Only the client's own cache is dropped: what follows reads and writes GeoServer's
++        # configuration through the REST API. A POST /rest/reset here made GeoServer dispose
++        # every store's connections on each creation and update of a dataset. The replace of
++        # a vector dataset resets GeoServer once, after ogr2ogr rewrites the table
++        # (overwrite_geoserver_resource of Inteligeo's importer/handlers/common/vector.py).
+         gs_catalog._cache.clear()
+-        gs_catalog.reset()
+ 
+         gs_resource = None
+         if not _is_remote_instance:

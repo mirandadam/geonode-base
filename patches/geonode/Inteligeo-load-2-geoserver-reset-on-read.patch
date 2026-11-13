@@ -31,7 +31,9 @@ Who relied on the reset, read before removing it:
   GeoServer before it starts (_execute_resource_import in geoserver/manager.py).
 
 Not changed: the other calls of reset() (upload, import, sync, clean_styles, purge of
-a coverage store), which follow a change of data.
+a coverage store), which follow a change of data. The ones of sync and clean_styles
+were removed afterwards by Inteligeo-load-4-geoserver-reset-on-sync.patch, whose
+header supersedes the reading above for them.
 
 Files touched: geonode/geoserver/helpers.py and geonode/geoserver/manager.py, not
 among the files inteligeo-geonode copies over the installed package (its
