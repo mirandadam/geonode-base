@@ -1,0 +1,180 @@
+Inteligeo, load test of 2026-11-13 (no advisory, no upstream fix): a request to the
+resource service API (delete, update, copy, permissions, create, ingest), and the
+GeoServer cleanup that follows a deletion, are no longer dropped when they wait more
+than 30 s for a Celery worker.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: the six views of base/api/views.py that hand work to
+resouce_service_dispatcher create an ExecutionRequest in `ready` and enqueue the task
+with `expiration=30`, and the task itself is declared with `expires=30`. Celery 5.6
+turns either into the AMQP per-message TTL (an explicit `expiration` on the call wins
+over the task's `expires`): RabbitMQ discards a message that sits 30 s in the queue,
+with no log line on either side and nothing left in the queue. The worker never sees
+it, so the execution stays `ready` for good and the resource is neither deleted nor
+changed. On the mirror, deleting the resources of a round through the API (about 230
+DELETE /api/v2/resources/<pk>/delete in a few seconds) left 4 of 183, 44 of 231 and
+43 of 232 executions in `ready`; a second DELETE of the same resources, sent when the
+queue was short, deleted them all. The worker prefetches 60 messages, and with 10 to
+15 processes the rest waited in RabbitMQ longer than 30 s. django_celery_results has
+no REVOKED row for them, which the worker would have written had the message reached
+it and expired there.
+
+The deletion that does run then enqueues geoserver_cascading_delete (a dataset) or
+geoserver_delete_map (a map) on the queue `cleanup`, with the same `expires=30` on
+the task and `expiration=30` on the calls (geoserver/manager.py, and the two in
+geoserver/signals.py). After a burst of deletions those can be dropped the same way,
+leaving the layer, its store entry and styles in GeoServer, and the GeoFence rules,
+which match by name, for a future layer of the same name. No dropped one was counted
+in the load test (nothing in the logs tells), but the TTL is the same.
+
+The change: the three tasks lose `expires=30` and the nine calls lose
+`expiration=30`. A request waits in the queue until a worker takes it.
+
+inteligeo-geonode copies its own base/api/views.py over GeoNode's (its Dockerfile),
+so the six views served are that copy's: inteligeo-geonode drops `expiration=30` from
+its six calls in the same change, and the two ship together. The hunks below for
+base/api/views.py keep GeoNode's own file consistent in case the copy goes away.
+
+What changes in behaviour:
+- A request sent while the worker is down or busy runs when it gets to the worker,
+  instead of vanishing after 30 s. The dispatcher still runs an execution only while
+  it is `ready` and marks it `running` before starting.
+- A user who repeats a request because the first seemed stuck now gets both run; the
+  second delete of the same resource fails and is marked `failed`, as it already did
+  when both arrived in time.
+- There is no ordering between requests on the same resource (two edits may run in
+  either order), as before within the 30 s; now it also holds for a request that
+  waited longer.
+
+Not changed: the other GeoServer tasks of geoserver/tasks.py (`expires=30`) and the
+calls with `expiration=30` to them in geoserver/signals.py, and those in
+notifications_helper.py, base/views.py, services/, br/ and harvesting; they share
+the 30 s TTL but are not on the deletion path.
+inteligeo-geonode's inteligeo5/geoserver/manager.py also has the two calls, but its
+Dockerfile does not copy that file into GeoNode.
+
+Not run: GeoNode's tests and a request against a running GeoNode. Checked by reading
+Celery 5.6.3 (app/base.py send_task: `expires` becomes `options["expiration"]`, and an
+`expiration` option passes through to the producer) and kombu 5.6.2 (Producer.publish:
+`expiration` becomes the message property in ms).
+
+--- a/geonode/base/api/views.py
++++ b/geonode/base/api/views.py
+@@ -647,7 +647,7 @@
+                         "created": request_params.get("created", False),
+                     },
+                 )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+@@ -808,7 +808,7 @@
+                     "defaults": request_params.get("defaults", f'{{"owner":"{request.user.username}"}}'),
+                 },
+             )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+@@ -908,7 +908,7 @@
+                     "defaults": request_params.get("defaults", f'{{"owner":"{request.user.username}"}}'),
+                 },
+             )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+@@ -992,7 +992,7 @@
+                 geonode_resource=resource,
+                 input_params={"uuid": resource.uuid},
+             )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+@@ -1113,7 +1113,7 @@
+                     "notify": request_params.get("notify", True),
+                 },
+             )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+@@ -1224,7 +1224,7 @@
+                     "defaults": request_params.get("defaults", "{}"),
+                 },
+             )
+-            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),), expiration=30)
++            resouce_service_dispatcher.apply_async(args=(str(_exec_request.exec_id),))
+             return Response(
+                 {
+                     "status": _exec_request.status,
+--- a/geonode/geoserver/manager.py
++++ b/geonode/geoserver/manager.py
+@@ -121,9 +121,9 @@
+                         or _real_instance.remote_service is None
+                         or _real_instance.remote_service.method == CASCADED
+                     ):
+-                        geoserver_cascading_delete.apply_async(args=(_real_instance.alternate,), expiration=30)
++                        geoserver_cascading_delete.apply_async(args=(_real_instance.alternate,))
+                 elif isinstance(_real_instance, Map):
+-                    geoserver_delete_map.apply_async(args=(_real_instance.id,), expiration=30)
++                    geoserver_delete_map.apply_async(args=(_real_instance.id,))
+             except Exception as e:
+                 logger.exception(e)
+ 
+--- a/geonode/geoserver/signals.py
++++ b/geonode/geoserver/signals.py
+@@ -48,7 +48,7 @@
+     # cascading_delete should only be called if
+     # ogc_server_settings.BACKEND_WRITE_ENABLED == True
+     if getattr(ogc_server_settings, "BACKEND_WRITE_ENABLED", True):
+-        geoserver_cascading_delete.apply_async(args=(typename,), expiration=30)
++        geoserver_cascading_delete.apply_async(args=(typename,))
+ 
+ 
+ @on_ogc_backend(BACKEND_PACKAGE)
+@@ -63,7 +63,7 @@
+             or instance.remote_service.method == CASCADED
+         ):
+             if instance.alternate:
+-                geoserver_cascading_delete.apply_async(args=(instance.alternate,), expiration=30)
++                geoserver_cascading_delete.apply_async(args=(instance.alternate,))
+ 
+ 
+ @on_ogc_backend(BACKEND_PACKAGE)
+--- a/geonode/geoserver/tasks.py
++++ b/geonode/geoserver/tasks.py
+@@ -294,7 +294,6 @@
+     base=FaultTolerantTask,
+     name="geonode.geoserver.tasks.geoserver_cascading_delete",
+     queue="cleanup",
+-    expires=30,
+     time_limit=600,
+     acks_late=False,
+     autoretry_for=(Exception,),
+@@ -320,7 +319,6 @@
+     bind=True,
+     name="geonode.geoserver.tasks.geoserver_delete_map",
+     queue="cleanup",
+-    expires=30,
+     time_limit=600,
+     acks_late=False,
+     autoretry_for=(Exception,),
+--- a/geonode/resource/api/tasks.py
++++ b/geonode/resource/api/tasks.py
+@@ -76,7 +76,6 @@
+     bind=True,
+     base=FaultTolerantTask,
+     queue="geonode",
+-    expires=30,
+     time_limit=600,
+     acks_late=False,
+     ignore_result=False,

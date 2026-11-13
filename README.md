@@ -223,6 +223,12 @@ test run. That header is the reference; this README only points to it.
     maintenance flags are cached in the process, not in the session, which created an
     anonymous session, valid 14 days, for every request without a session cookie
     (GeoServer's role lookups, the probes); GeoServer logged each one's cookie.
+  - `Inteligeo-load-7-resource-service-expiry.patch`: a request to the resource service
+    API (delete, update, copy, permissions) and the GeoServer cleanup of a deleted dataset
+    or map no longer carry a 30 s message TTL, with which RabbitMQ silently dropped them
+    when the queue was long, leaving the execution in `ready` for good or the layer in
+    GeoServer. It ships with inteligeo-geonode's own copy of base/api/views.py, which
+    drops the same TTL from the six views the image actually serves.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for
