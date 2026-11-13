@@ -219,6 +219,10 @@ test run. That header is the reference; this README only points to it.
   - `Inteligeo-load-5-resource-id-lock.patch`: ingesting or copying a resource and
     registering a remote service no longer hold the row lock that hands out resource ids
     while copying files or waiting for GeoServer or the remote server.
+  - `Inteligeo-load-6-configuration-not-in-session.patch`: the read-only and
+    maintenance flags are cached in the process, not in the session, which created an
+    anonymous session, valid 14 days, for every request without a session cookie
+    (GeoServer's role lookups, the probes); GeoServer logged each one's cookie.
 - `patches/rest_framework/`: the Django REST framework fix for CVE-2026-73228
   (`request.data` bypassing `DATA_UPLOAD_MAX_MEMORY_SIZE`), transposed from 3.17.2 to
   the 3.15.2 the image keeps because dynamic-rest 2.3.0 refuses DRF 3.16+. As for

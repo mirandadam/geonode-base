@@ -1,0 +1,123 @@
+Inteligeo, load test of 2026-11-11/12 (no advisory, no upstream fix): the read-only
+and maintenance flags are no longer cached in the session, which created a session
+for every request that came without one.
+
+Target: GeoNode 4.3.1 as installed by this image (site-packages/geonode). Applied
+with `patch -p1 --fuzz=0` from site-packages (paths are geonode/...).
+
+What happened: MaintenanceMiddleware and ReadOnlyMiddleware (base/middleware.py)
+call configuration_session_cache (base/utils.py) in process_view, which writes
+{"config": {read_only, maintenance, expiration}} into request.session. A request
+without a session cookie gets a new session, saved to django_session and sent back
+as `Set-Cookie: sessionid=...` with SESSION_COOKIE_AGE (14 days). Clients that never
+send the cookie back create one session per request:
+- GeoServer's REST role service (GeoServerRestRoleService, HttpClient 4), which asks
+  /api/users/<name>, /api/roles and /api/adminRole for the roles of every user it
+  authorizes. HttpClient rejects the cookie and logs it, value included, as
+  `WARN [protocol.ResponseProcessCookies] - Invalid cookie header: "Set-Cookie:
+  sessionid=..."` (inteligeo-deploy now silences that logger);
+- the liveness and startup probes, migrate_domain.py's wait (/api/v2/), and any
+  client with a token or none (QGIS, scripts).
+The mirror of production had 351k rows in django_session after the load test. On
+production, 695 of these session keys seen in GeoServer's log of 2026-10-05..08 were
+all anonymous (user_id null): the session holds only the flags above.
+inteligeo-geonode's tokens_vigentes route already set session.modified = False for
+the same reason.
+
+The change: configuration_cache() keeps the two flags in the process for 60 s (the
+same timeout as before, now per uWSGI process instead of per session) and returns
+them; both middlewares read it and no longer touch the session.
+
+What changes in behaviour:
+- Turning read-only or maintenance on or off takes effect within 60 s in each
+  process, as before it did within 60 s in each session.
+- Sessions already holding "config" keep it until they expire; nothing reads it.
+- configuration_session_cache no longer exists; nothing else in GeoNode 4.3.1 or in
+  inteligeo-geonode calls it.
+
+Not run: GeoNode's tests and a request against a running GeoNode. Checked by reading
+and with a stand-in for Configuration (see the commit).
+
+--- a/geonode/base/middleware.py
++++ b/geonode/base/middleware.py
+@@ -21,7 +21,7 @@
+ # Geonode functionality
+ 
+ from django.shortcuts import render
+-from geonode.base.utils import configuration_session_cache
++from geonode.base.utils import configuration_cache
+ 
+ 
+ class ReadOnlyMiddleware:
+@@ -47,11 +47,8 @@
+         return self.get_response(request)
+ 
+     def process_view(self, request, view_func, view_args, view_kwargs):
+-        session = request.session
+-        configuration_session_cache(session)
+-
+         # check if the Geonode instance is read-only
+-        if session.get("config").get("configuration").get("read_only"):
++        if configuration_cache()["read_only"]:
+             # allow superadmin users to do whatever they want
+             if not request.user.is_superuser or not request.user.is_active:
+                 # check if the request's method is forbidden in read-only instance
+@@ -85,11 +82,8 @@
+         return self.get_response(request)
+ 
+     def process_view(self, request, view_func, view_args, view_kwargs):
+-        session = request.session
+-        configuration_session_cache(session)
+-
+         # check if the Geonode instance is in maintenance mode
+-        if session.get("config").get("configuration").get("maintenance"):
++        if configuration_cache()["maintenance"]:
+             # allow superadmin users to do whatever they want
+             if not request.user.is_superuser:
+                 # check if the request is not against whitelisted views (check by URL names)
+--- a/geonode/base/utils.py
++++ b/geonode/base/utils.py
+@@ -25,7 +25,6 @@
+ import json
+ import logging
+ from schema import Schema
+-from dateutil.parser import isoparse
+ from datetime import datetime, timedelta
+ 
+ # Django functionality
+@@ -127,21 +126,24 @@
+             )
+ 
+ 
+-def configuration_session_cache(session):
++_configuration_cache = {"configuration": None, "expiration": datetime.min}
++
++
++def configuration_cache():
++    """read_only and maintenance from the Configuration row, read again at most once a
++    minute per process. Kept in the process, not in the session: writing it to the session
++    created a session row for every request that came without one (GeoServer's calls to the
++    API, probes, clients with a token), each valid for SESSION_COOKIE_AGE."""
+     CONFIG_CACHE_TIMEOUT_SEC = 60
+ 
+-    _config = session.get("config")
+     _now = datetime.utcnow()
+-    _dt = isoparse(_config.get("expiration")) if _config else _now
+-    if _config is None or _dt < _now:
++    if _configuration_cache["expiration"] < _now:
+         config = Configuration.load()
+-        _dt = _now + timedelta(seconds=CONFIG_CACHE_TIMEOUT_SEC)
+-        cached_config = {"configuration": {}, "expiration": _dt.isoformat()}
+-
+-        for field_name in ["read_only", "maintenance"]:
+-            cached_config["configuration"][field_name] = getattr(config, field_name)
+-
+-        session["config"] = cached_config
++        _configuration_cache["configuration"] = {
++            field_name: getattr(config, field_name) for field_name in ["read_only", "maintenance"]
++        }
++        _configuration_cache["expiration"] = _now + timedelta(seconds=CONFIG_CACHE_TIMEOUT_SEC)
++    return _configuration_cache["configuration"]
+ 
+ 
+ class OwnerRightsRequestViewUtils:
